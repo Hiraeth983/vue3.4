@@ -1,3 +1,4 @@
+import { ReactiveFlags } from "./constants";
 import { activeEffect, trackEffect, triggerEffects } from "./effect";
 import { toReactive } from "./reactive";
 import { createDep, Dep } from "./reactiveEffect";
@@ -48,4 +49,53 @@ function triggerRefValue(ref: RefImpl) {
   if (dep) {
     triggerEffects(dep);
   }
+}
+
+export function toRef(obj, key) {
+  return new ObjectRefImpl(obj, key);
+}
+
+export function toRefs(obj) {
+  const result = {};
+  for (const key in obj) {
+    result[key] = toRef(obj, key);
+  }
+  return result;
+}
+
+class ObjectRefImpl {
+  __v_isRef = true;
+
+  constructor(public _object, public _key) {}
+
+  get value() {
+    return this._object[this._key];
+  }
+
+  set value(newValue) {
+    this._object[this._key] = newValue;
+  }
+}
+
+export function isRef(obj) {
+  return obj ? obj[ReactiveFlags.IS_REF] === true : false;
+}
+
+export function proxyRefs(objectWithRefs) {
+  return new Proxy(objectWithRefs, {
+    get(target, key, receiver) {
+      const r = Reflect.get(target, key, receiver);
+      return isRef(r) ? r.value : r;
+    },
+    set(target, key, newValue, receiver) {
+      const oldValue = target[key];
+
+      if (isRef(oldValue)) {
+        oldValue.value = newValue;
+        return true;
+      } else {
+        return Reflect.set(target, key, newValue, receiver);
+      }
+    },
+  });
 }
