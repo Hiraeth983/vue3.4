@@ -1,3 +1,4 @@
+import { DirtyLevels } from "./constants";
 import type { Dep } from "./reactiveEffect";
 
 export function effect(fn: Function, options?) {
@@ -40,11 +41,22 @@ export class ReactiveEffect {
   _trackId = 0; // 记录当前effect执行次数
   deps = []; // 记录当前effect关联的依赖
   _depsLength = 0;
+  _dirtyLevel = DirtyLevels.DIRTY;
 
   public active = true; // 是否需要响应式
   constructor(public fn: Function, public scheduler: Function) {}
 
+  public get dirty() {
+    return this._dirtyLevel === DirtyLevels.DIRTY;
+  }
+
+  public set dirty(v) {
+    this._dirtyLevel = v ? DirtyLevels.DIRTY : DirtyLevels.NO_DIRTY;
+  }
+
   run() {
+    this.dirty = false;
+
     if (!this.active) {
       return this.fn();
     }
@@ -94,6 +106,10 @@ export function trackEffect(effect: ReactiveEffect, dep: Dep) {
 
 export function triggerEffects(dep: Dep) {
   for (const effect of dep.keys()) {
+    if (!effect.dirty) {
+      effect.dirty = true;
+    }
+
     if (!effect._running) {
       if (effect.scheduler) {
         effect.scheduler();

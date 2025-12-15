@@ -6,3 +6,8 @@ export enum ReactiveFlags {
   RAW = "__v_raw",
   IS_REF = "__v_isRef",
 }
+
+export enum DirtyLevels {
+  DIRTY = 4,
+  NO_DIRTY = 0,
+}
