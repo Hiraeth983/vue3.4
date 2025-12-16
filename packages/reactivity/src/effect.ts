@@ -1,6 +1,16 @@
 import { DirtyLevels } from "./constants";
 import type { Dep } from "./reactiveEffect";
 
+let shouldTrack = true;
+
+export function pauseTracking() {
+  shouldTrack = false;
+}
+
+export function resetTracking() {
+  shouldTrack = true;
+}
+
 export function effect(fn: Function, options?) {
   const _effect = new ReactiveEffect(fn, () => {
     _effect.run();
@@ -95,6 +105,8 @@ function cleanDepEffect(dep: Dep, effect: ReactiveEffect) {
 
 // 双向记忆
 export function trackEffect(effect: ReactiveEffect, dep: Dep) {
+  if (!shouldTrack) return;
+
   // 同一个effect和变量不触发重复收集
   if (dep.get(effect) === effect._trackId) return;
   // 更新_trackId，确保记录effect的最新执行次数
