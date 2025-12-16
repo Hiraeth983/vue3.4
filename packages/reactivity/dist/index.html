@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module">
+      import {
+        reactive,
+        effect,
+        ref,
+        toRef,
+        toRefs,
+        proxyRefs,
+        computed,
+        watch,
+      } from "./reactivity.esm.js";
+      // import { reactive, effect } from '/node_modules/vue/dist/vue.esm-browser.js'
+
+      // const state = reactive({ name: "leo" });
+      // const aliasName = computed({
+      //   get(oldValue) {
+      //     console.log("runner", oldValue);
+      //     return `**${state.name}`;
+      //   },
+      //   set(newValue) {
+      //     state.name = newValue;
+      //   },
+      // });
+
+      // effect(() => {
+      //   console.log(aliasName.value);
+      //   console.log(aliasName.value);
+      //   console.log(aliasName.value);
+      // });
+
+      // setTimeout(() => {
+      //   state.name = "handsome";
+      // }, 1000);
+
+      const state = reactive({ name: "leo", age: 23, address: { n: 1 } });
+
+      watch(
+        state,
+        (newValue, oldValue) => {
+          console.log(newValue, oldValue);
+        },
+        {
+          deep: false,
+        }
+      );
+
+      setTimeout(() => {
+        state.address.n = "666";
+      }, 1000);
+    </script>
+  </body>
+</html>

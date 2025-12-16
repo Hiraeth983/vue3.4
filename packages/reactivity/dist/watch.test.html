@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Watch Test Cases</title>
+    <style>
+      body {
+        font-family: monospace;
+        padding: 20px;
+      }
+      .test {
+        margin: 10px 0;
+        padding: 10px;
+        border: 1px solid #ccc;
+      }
+      .pass {
+        background: #d4edda;
+      }
+      .fail {
+        background: #f8d7da;
+      }
+      .pending {
+        background: #fff3cd;
+      }
+      h3 {
+        margin: 0 0 10px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Watch Test Cases</h1>
+    <div id="results"></div>
+
+    <script type="module">
+      import { reactive, effect, ref, watch, watchEffect } from "./reactivity.esm.js";
+      // import {
+      //   reactive,
+      //   effect,
+      //   ref,
+      //   watch,
+      // } from "/node_modules/vue/dist/vue.esm-browser.js";
+
+      const results = document.getElementById("results");
+      let testId = 0;
+
+      function createTest(name) {
+        const div = document.createElement("div");
+        div.className = "test pending";
+        div.id = `test-${++testId}`;
+        div.innerHTML = `<h3>${name}</h3><pre></pre>`;
+        results.appendChild(div);
+        return {
+          log: (msg) => {
+            div.querySelector("pre").textContent += msg + "\n";
+          },
+          pass: () => {
+            div.className = "test pass";
+            div.querySelector("h3").textContent += " ✅";
+          },
+          fail: (err) => {
+            div.className = "test fail";
+            div.querySelector("h3").textContent += " ❌";
+            div.querySelector("pre").textContent += `Error: ${err}\n`;
+          },
+        };
+      }
+
+      // ==================== 测试用例 ====================
+
+      // 测试1: 监听 ref 基本类型
+      (function testWatchRef() {
+        const t = createTest("1. 监听 ref 基本类型");
+        const count = ref(0);
+        let triggered = false;
+        let newVal, oldVal;
+
+        watch(count, (n, o) => {
+          triggered = true;
+          newVal = n;
+          oldVal = o;
+          t.log(`callback: newVal=${n}, oldVal=${o}`);
+        });
+
+        t.log(`初始值: ${count.value}`);
+        count.value = 1;
+        t.log(`修改后: ${count.value}`);
+
+        setTimeout(() => {
+          if (triggered && newVal === 1 && oldVal === 0) {
+            t.pass();
+          } else {
+            t.fail(
+              `triggered=${triggered}, newVal=${newVal}, oldVal=${oldVal}`
+            );
+          }
+        }, 0);
+      })();
+
+      // 测试2: 监听 ref 对象（浅监听，默认行为）
+      (function testWatchRefObjectShallow() {
+        const t = createTest("2. 监听 ref 对象（浅监听）- 修改属性不触发");
+        const state = ref({ name: "vue" });
+        let triggered = false;
+
+        watch(state, (n, o) => {
+          triggered = true;
+          t.log(`callback triggered: ${JSON.stringify(n)}`);
+        });
+
+        t.log(`初始值: ${JSON.stringify(state.value)}`);
+        state.value.name = "react";
+        t.log(`修改属性后: ${JSON.stringify(state.value)}`);
+
+        setTimeout(() => {
+          if (!triggered) {
+            t.log("属性修改不触发 callback（符合预期）");
+            t.pass();
+          } else {
+            t.fail("不应该触发");
+          }
+        }, 0);
+      })();
+
+      // 测试3: 监听 ref 对象（整体替换触发）
+      (function testWatchRefObjectReplace() {
+        const t = createTest("3. 监听 ref 对象 - 整体替换触发");
+        const state = ref({ name: "vue" });
+        let triggered = false;
+
+        watch(state, (n, o) => {
+          triggered = true;
+          t.log(
+            `callback: newVal=${JSON.stringify(n)}, oldVal=${JSON.stringify(o)}`
+          );
+        });
+
+        t.log(`初始值: ${JSON.stringify(state.value)}`);
+        state.value = { name: "react" };
+        t.log(`整体替换后: ${JSON.stringify(state.value)}`);
+
+        setTimeout(() => {
+          if (triggered) {
+            t.pass();
+          } else {
+            t.fail("应该触发");
+          }
+        }, 0);
+      })();
+
+      // 测试4: 监听 ref 对象 + deep: true
+      (function testWatchRefDeep() {
+        const t = createTest("4. 监听 ref 对象 + deep: true");
+        const state = ref({ name: "vue", nested: { count: 0 } });
+        let triggered = false;
+
+        watch(
+          state,
+          (n, o) => {
+            triggered = true;
+            t.log(`callback: ${JSON.stringify(n)}`);
+          },
+          { deep: true }
+        );
+
+        t.log(`初始值: ${JSON.stringify(state.value)}`);
+        state.value.nested.count = 1;
+        t.log(`修改嵌套属性后: ${JSON.stringify(state.value)}`);
+
+        setTimeout(() => {
+          if (triggered) {
+            t.pass();
+          } else {
+            t.fail("deep: true 应该触发");
+          }
+        }, 0);
+      })();
+
+      // 测试5: 监听 reactive 对象（默认深度监听）
+      (function testWatchReactive() {
+        const t = createTest("5. 监听 reactive 对象（默认深度）");
+        const state = reactive({ name: "vue", nested: { count: 0 } });
+        let triggerCount = 0;
+
+        watch(state, (n, o) => {
+          triggerCount++;
+          t.log(`callback #${triggerCount}: ${JSON.stringify(n)}`);
+        });
+
+        t.log(`初始值: ${JSON.stringify(state)}`);
+        state.name = "react";
+        t.log(`修改 name 后: ${JSON.stringify(state)}`);
+
+        setTimeout(() => {
+          state.nested.count = 1;
+          t.log(`修改 nested.count 后: ${JSON.stringify(state)}`);
+
+          setTimeout(() => {
+            if (triggerCount === 2) {
+              t.pass();
+            } else {
+              t.fail(`应该触发2次，实际触发${triggerCount}次`);
+            }
+          }, 0);
+        }, 0);
+      })();
+
+      // 测试6: 监听 reactive + deep: false（只监听第一层）
+      (function testWatchReactiveShallow() {
+        const t = createTest("6. 监听 reactive + deep: false（只监听第一层）");
+        const state = reactive({ name: "vue", nested: { count: 0 } });
+        let triggerCount = 0;
+
+        watch(
+          state,
+          (n, o) => {
+            triggerCount++;
+            t.log(`callback #${triggerCount}: ${JSON.stringify(n)}`);
+          },
+          { deep: false }
+        );
+
+        t.log(`初始值: ${JSON.stringify(state)}`);
+
+        // 修改第一层
+        state.name = "react";
+        t.log(`修改 name: ${JSON.stringify(state)}`);
+
+        setTimeout(() => {
+          // 修改第二层（不应该触发）
+          state.nested.count = 1;
+          t.log(`修改 nested.count: ${JSON.stringify(state)}`);
+
+          setTimeout(() => {
+            if (triggerCount === 1) {
+              t.log("deep: false 只触发第一层修改");
+              t.pass();
+            } else {
+              t.fail(`应该只触发1次，实际触发${triggerCount}次`);
+            }
+          }, 0);
+        }, 0);
+      })();
+
+      // 测试7: 监听 getter 函数
+      (function testWatchGetter() {
+        const t = createTest("7. 监听 getter 函数");
+        const state = reactive({ count: 0 });
+        let triggered = false;
+        let newVal, oldVal;
+
+        watch(
+          () => state.count * 2,
+          (n, o) => {
+            triggered = true;
+            newVal = n;
+            oldVal = o;
+            t.log(`callback: newVal=${n}, oldVal=${o}`);
+          }
+        );
+
+        t.log(`初始 count: ${state.count}, 计算值: ${state.count * 2}`);
+        state.count = 5;
+        t.log(`修改后 count: ${state.count}, 计算值: ${state.count * 2}`);
+
+        setTimeout(() => {
+          if (triggered && newVal === 10 && oldVal === 0) {
+            t.pass();
+          } else {
+            t.fail(
+              `triggered=${triggered}, newVal=${newVal}, oldVal=${oldVal}`
+            );
+          }
+        }, 0);
+      })();
+
+      // 测试8: 监听多数据源（数组）
+      (function testWatchMultiSource() {
+        const t = createTest("8. 监听多数据源（数组）");
+        const count = ref(0);
+        const name = ref("vue");
+        const state = reactive({ age: 18 });
+        let triggered = false;
+        let values;
+
+        watch([count, name, () => state.age], (newVals, oldVals) => {
+          triggered = true;
+          values = { newVals, oldVals };
+          t.log(
+            `callback: newVals=${JSON.stringify(
+              newVals
+            )}, oldVals=${JSON.stringify(oldVals)}`
+          );
+        });
+
+        t.log(
+          `初始值: count=${count.value}, name=${name.value}, age=${state.age}`
+        );
+        count.value = 1;
+        t.log(`修改 count 后: ${count.value}`);
+
+        setTimeout(() => {
+          if (triggered && values.newVals[0] === 1 && values.oldVals[0] === 0) {
+            t.pass();
+          } else {
+            t.fail(`triggered=${triggered}, values=${JSON.stringify(values)}`);
+          }
+        }, 0);
+      })();
+
+      // 测试9: unwatch 停止监听
+      (function testUnwatch() {
+        const t = createTest("9. unwatch 停止监听");
+        const count = ref(0);
+        let triggerCount = 0;
+
+        const unwatch = watch(count, (n, o) => {
+          triggerCount++;
+          t.log(`callback #${triggerCount}: newVal=${n}`);
+        });
+
+        count.value = 1;
+        t.log(`第一次修改: ${count.value}`);
+
+        setTimeout(() => {
+          t.log(`调用 unwatch()`);
+          unwatch();
+
+          count.value = 2;
+          t.log(`第二次修改: ${count.value}`);
+
+          setTimeout(() => {
+            if (triggerCount === 1) {
+              t.log("unwatch 后不再触发");
+              t.pass();
+            } else {
+              t.fail(`应该只触发1次，实际触发${triggerCount}次`);
+            }
+          }, 0);
+        }, 0);
+      })();
+
+      // 测试10: 循环引用不死循环
+      (function testCircularReference() {
+        const t = createTest("10. 循环引用不死循环");
+        const obj = reactive({ name: "vue" });
+        obj.self = obj; // 循环引用
+
+        let triggered = false;
+
+        try {
+          watch(obj, (n) => {
+            triggered = true;
+            t.log("callback triggered");
+          });
+
+          obj.name = "react";
+
+          setTimeout(() => {
+            t.log("没有死循环");
+            if (triggered) {
+              t.pass();
+            } else {
+              t.fail("应该触发");
+            }
+          }, 100);
+        } catch (e) {
+          t.fail(e.message);
+        }
+      })();
+
+      // 测试11: 监听数组类型 reactive
+      (function testWatchReactiveArray() {
+        const t = createTest("11. 监听 reactive 数组");
+        const arr = reactive([1, 2, 3]);
+        let triggered = false;
+
+        watch(arr, (n) => {
+          triggered = true;
+          t.log(`callback: ${JSON.stringify(n)}`);
+        });
+
+        t.log(`初始值: ${JSON.stringify(arr)}`);
+        arr.push(4);
+        t.log(`push 后: ${JSON.stringify(arr)}`);
+
+        setTimeout(() => {
+          if (triggered) {
+            t.pass();
+          } else {
+            t.fail("应该触发");
+          }
+        }, 0);
+      })();
+
+      // 测试12: oldValue 和 newValue 引用问题
+      (function testValueReference() {
+        const t = createTest("12. reactive 的 oldValue/newValue 是同一引用");
+        const state = reactive({ count: 0 });
+        let isSameRef = false;
+
+        watch(state, (n, o) => {
+          isSameRef = n === o;
+          t.log(`newValue === oldValue: ${isSameRef}`);
+          t.log(`newValue: ${JSON.stringify(n)}`);
+          t.log(`oldValue: ${JSON.stringify(o)}`);
+        });
+
+        state.count = 1;
+
+        setTimeout(() => {
+          if (isSameRef) {
+            t.log(
+              "reactive 对象的 newValue 和 oldValue 是同一引用（Vue 3 的行为）"
+            );
+            t.pass();
+          } else {
+            t.fail("应该是同一引用");
+          }
+        }, 0);
+      })();
+
+      // ==================== watchEffect 测试 ====================
+
+      // 测试13: watchEffect 基本功能
+      (function testWatchEffectBasic() {
+        const t = createTest("13. watchEffect 基本功能");
+        const count = ref(0);
+        let runCount = 0;
+        let lastValue;
+
+        watchEffect(() => {
+          runCount++;
+          lastValue = count.value;
+          t.log(`effect 执行 #${runCount}: count = ${count.value}`);
+        });
+
+        t.log(`初始执行后 runCount: ${runCount}`);
+
+        setTimeout(() => {
+          count.value = 1;
+          t.log(`修改 count 为 1`);
+
+          setTimeout(() => {
+            if (runCount === 2 && lastValue === 1) {
+              t.pass();
+            } else {
+              t.fail(`runCount=${runCount}, lastValue=${lastValue}`);
+            }
+          }, 0);
+        }, 0);
+      })();
+
+      // 测试14: watchEffect 停止监听
+      (function testWatchEffectStop() {
+        const t = createTest("14. watchEffect 停止监听");
+        const count = ref(0);
+        let runCount = 0;
+
+        const stop = watchEffect(() => {
+          runCount++;
+          t.log(`effect 执行 #${runCount}: count = ${count.value}`);
+        });
+
+        setTimeout(() => {
+          count.value = 1;
+          t.log(`第一次修改: ${count.value}`);
+
+          setTimeout(() => {
+            t.log(`调用 stop()`);
+            stop();
+
+            count.value = 2;
+            t.log(`第二次修改: ${count.value}`);
+
+            setTimeout(() => {
+              if (runCount === 2) {
+                t.log("stop 后不再执行 effect");
+                t.pass();
+              } else {
+                t.fail(`应该执行2次，实际执行${runCount}次`);
+              }
+            }, 0);
+          }, 0);
+        }, 0);
+      })();
+
+      // ==================== immediate 测试 ====================
+
+      // 测试15: watch immediate: true
+      (function testWatchImmediate() {
+        const t = createTest("15. watch immediate: true 立即执行");
+        const count = ref(0);
+        let triggerCount = 0;
+        let firstOldValue;
+
+        watch(
+          count,
+          (n, o) => {
+            triggerCount++;
+            if (triggerCount === 1) {
+              firstOldValue = o;
+            }
+            t.log(`callback #${triggerCount}: newVal=${n}, oldVal=${o}`);
+          },
+          { immediate: true }
+        );
+
+        t.log(`注册后 triggerCount: ${triggerCount}`);
+
+        setTimeout(() => {
+          if (triggerCount === 1 && firstOldValue === undefined) {
+            t.log("immediate: true 时，首次 oldValue 为 undefined");
+            t.pass();
+          } else {
+            t.fail(
+              `triggerCount=${triggerCount}, firstOldValue=${firstOldValue}`
+            );
+          }
+        }, 0);
+      })();
+
+      // 测试16: watch immediate: false（默认行为）
+      (function testWatchNoImmediate() {
+        const t = createTest("16. watch immediate: false 不立即执行");
+        const count = ref(0);
+        let triggerCount = 0;
+
+        watch(count, (n, o) => {
+          triggerCount++;
+          t.log(`callback #${triggerCount}: newVal=${n}, oldVal=${o}`);
+        });
+
+        t.log(`注册后 triggerCount: ${triggerCount}`);
+
+        setTimeout(() => {
+          if (triggerCount === 0) {
+            t.log("默认不立即执行");
+            t.pass();
+          } else {
+            t.fail(`不应该触发，实际触发${triggerCount}次`);
+          }
+        }, 0);
+      })();
+
+      // ==================== onCleanup 测试 ====================
+
+      // 测试17: watchEffect onCleanup 基本功能
+      (function testWatchEffectOnCleanup() {
+        const t = createTest("17. watchEffect onCleanup 清理回调");
+        const count = ref(0);
+        let cleanupCount = 0;
+        let effectCount = 0;
+        const logs = [];
+
+        watchEffect((onCleanup) => {
+          effectCount++;
+          logs.push(`effect #${effectCount}: count = ${count.value}`);
+          t.log(`effect #${effectCount}: count = ${count.value}`);
+
+          onCleanup(() => {
+            cleanupCount++;
+            logs.push(`cleanup #${cleanupCount}`);
+            t.log(`cleanup #${cleanupCount}`);
+          });
+        });
+
+        setTimeout(() => {
+          count.value = 1;
+          t.log("--- 修改 count 为 1 ---");
+
+          setTimeout(() => {
+            count.value = 2;
+            t.log("--- 修改 count 为 2 ---");
+
+            setTimeout(() => {
+              // effect 执行3次（初始1次 + 变化2次）
+              // cleanup 执行2次（第2次effect前清理1次 + 第3次effect前清理1次）
+              if (effectCount === 3 && cleanupCount === 2) {
+                t.log(`总结: effect=${effectCount}次, cleanup=${cleanupCount}次`);
+                t.pass();
+              } else {
+                t.fail(
+                  `effectCount=${effectCount}, cleanupCount=${cleanupCount}`
+                );
+              }
+            }, 0);
+          }, 0);
+        }, 0);
+      })();
+
+      // 测试18: watch onCleanup 基本功能
+      (function testWatchOnCleanup() {
+        const t = createTest("18. watch onCleanup 清理回调");
+        const count = ref(0);
+        let cleanupCount = 0;
+        let cbCount = 0;
+
+        watch(count, (n, o, onCleanup) => {
+          cbCount++;
+          t.log(`callback #${cbCount}: newVal=${n}, oldVal=${o}`);
+
+          onCleanup(() => {
+            cleanupCount++;
+            t.log(`cleanup #${cleanupCount}`);
+          });
+        });
+
+        setTimeout(() => {
+          count.value = 1;
+          t.log("--- 修改 count 为 1 ---");
+
+          setTimeout(() => {
+            count.value = 2;
+            t.log("--- 修改 count 为 2 ---");
+
+            setTimeout(() => {
+              // cb 执行2次（变化2次）
+              // cleanup 执行1次（第2次cb前清理1次）
+              if (cbCount === 2 && cleanupCount === 1) {
+                t.log(`总结: callback=${cbCount}次, cleanup=${cleanupCount}次`);
+                t.pass();
+              } else {
+                t.fail(`cbCount=${cbCount}, cleanupCount=${cleanupCount}`);
+              }
+            }, 0);
+          }, 0);
+        }, 0);
+      })();
+
+      // 测试19: watchEffect unwatch 时执行 cleanup
+      (function testWatchEffectUnwatchCleanup() {
+        const t = createTest("19. watchEffect unwatch 时执行 cleanup");
+        const count = ref(0);
+        let cleanupCalled = false;
+
+        const stop = watchEffect((onCleanup) => {
+          t.log(`effect: count = ${count.value}`);
+          onCleanup(() => {
+            cleanupCalled = true;
+            t.log("cleanup 被调用");
+          });
+        });
+
+        t.log("调用 stop()");
+        stop();
+
+        setTimeout(() => {
+          if (cleanupCalled) {
+            t.log("unwatch 时正确执行了 cleanup");
+            t.pass();
+          } else {
+            t.fail("unwatch 时应该执行 cleanup");
+          }
+        }, 0);
+      })();
+
+      // 测试20: watch unwatch 时执行 cleanup
+      (function testWatchUnwatchCleanup() {
+        const t = createTest("20. watch unwatch 时执行 cleanup");
+        const count = ref(0);
+        let cleanupCalled = false;
+
+        const unwatch = watch(
+          count,
+          (n, o, onCleanup) => {
+            t.log(`callback: newVal=${n}`);
+            onCleanup(() => {
+              cleanupCalled = true;
+              t.log("cleanup 被调用");
+            });
+          },
+          { immediate: true }
+        );
+
+        t.log("调用 unwatch()");
+        unwatch();
+
+        setTimeout(() => {
+          if (cleanupCalled) {
+            t.log("unwatch 时正确执行了 cleanup");
+            t.pass();
+          } else {
+            t.fail("unwatch 时应该执行 cleanup");
+          }
+        }, 0);
+      })();
+
+      // 测试21: onCleanup 模拟异步请求取消
+      (function testOnCleanupAsyncCancel() {
+        const t = createTest("21. onCleanup 模拟异步请求取消");
+        const searchQuery = ref("vue");
+        const pendingRequests = [];
+        const cancelledRequests = [];
+        let requestId = 0;
+
+        watchEffect((onCleanup) => {
+          const query = searchQuery.value;
+          const currentId = ++requestId;
+          pendingRequests.push(currentId);
+          t.log(`发起请求 #${currentId}: query="${query}"`);
+
+          onCleanup(() => {
+            cancelledRequests.push(currentId);
+            t.log(`取消请求 #${currentId}`);
+          });
+        });
+
+        setTimeout(() => {
+          searchQuery.value = "react";
+          t.log("--- 修改 searchQuery 为 react ---");
+
+          setTimeout(() => {
+            searchQuery.value = "angular";
+            t.log("--- 修改 searchQuery 为 angular ---");
+
+            setTimeout(() => {
+              // 应该发起3个请求，取消前2个
+              if (
+                pendingRequests.length === 3 &&
+                cancelledRequests.length === 2 &&
+                cancelledRequests.includes(1) &&
+                cancelledRequests.includes(2)
+              ) {
+                t.log(`发起请求: [${pendingRequests}]`);
+                t.log(`取消请求: [${cancelledRequests}]`);
+                t.pass();
+              } else {
+                t.fail(
+                  `pending=[${pendingRequests}], cancelled=[${cancelledRequests}]`
+                );
+              }
+            }, 0);
+          }, 0);
+        }, 0);
+      })();
+
+      // 测试22: watch + immediate + onCleanup
+      (function testWatchImmediateOnCleanup() {
+        const t = createTest("22. watch immediate + onCleanup");
+        const count = ref(0);
+        let cbCount = 0;
+        let cleanupCount = 0;
+
+        watch(
+          count,
+          (n, o, onCleanup) => {
+            cbCount++;
+            t.log(`callback #${cbCount}: newVal=${n}, oldVal=${o}`);
+            onCleanup(() => {
+              cleanupCount++;
+              t.log(`cleanup #${cleanupCount}`);
+            });
+          },
+          { immediate: true }
+        );
+
+        setTimeout(() => {
+          count.value = 1;
+          t.log("--- 修改 count 为 1 ---");
+
+          setTimeout(() => {
+            // immediate 执行1次 + 变化1次 = cb 2次
+            // 第2次cb前清理1次 = cleanup 1次
+            if (cbCount === 2 && cleanupCount === 1) {
+              t.log(`总结: callback=${cbCount}次, cleanup=${cleanupCount}次`);
+              t.pass();
+            } else {
+              t.fail(`cbCount=${cbCount}, cleanupCount=${cleanupCount}`);
+            }
+          }, 0);
+        }, 0);
+      })();
+    </script>
+  </body>
+</html>
