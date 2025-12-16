@@ -16,7 +16,11 @@ export function watch(source, cb, options = {} as any) {
   return doWatch(source, cb, options);
 }
 
-function doWatch(source, cb, { deep }) {
+export function watchEffect(source, options = {} as any) {
+  return doWatch(source, null, options);
+}
+
+function doWatch(source, cb, { deep, immediate }) {
   // 递归访问source
   const reactiveGetter = (source) =>
     deep === true
@@ -41,7 +45,13 @@ function doWatch(source, cb, { deep }) {
         return s;
       });
   } else if (isFunction(source)) {
-    getter = source;
+    if (cb) {
+      // watch 模式 - source 是 getter
+      getter = source;
+    } else {
+      // watchEffect 模式 - source 是 effect 函数，需要传入 onCleanup
+      getter = () => source(onCleanup);
+    }
   }
 
   // 统一处理 deep
@@ -50,21 +60,58 @@ function doWatch(source, cb, { deep }) {
     getter = () => traverse(baseGetter());
   }
 
+  let cleanup;
+  let onCleanup = (fn) => {
+    cleanup = fn;
+  };
+  const callCleanup = () => {
+    if (cleanup) {
+      cleanup();
+      cleanup = undefined;
+    }
+  };
+
   let oldValue = isMultiSource
     ? new Array(source.length).fill(INITIAL_WATCHER_VALUE)
     : INITIAL_WATCHER_VALUE;
 
   const scheduler = () => {
-    const newValue = effect.run();
-    cb(newValue, oldValue);
-    oldValue = newValue;
+    callCleanup(); // 执行上一次的清理回调
+
+    if (cb) {
+      const newValue = effect.run();
+      cb(
+        newValue,
+        oldValue === INITIAL_WATCHER_VALUE
+          ? undefined
+          : isMultiSource && oldValue[0] === INITIAL_WATCHER_VALUE
+          ? []
+          : oldValue,
+        onCleanup
+      );
+      oldValue = newValue;
+    } else {
+      // watchEffect
+      effect.run();
+    }
   };
 
   const effect = new ReactiveEffect(getter, scheduler);
-  oldValue = effect.run();
+
+  if (cb) {
+    if (immediate) {
+      scheduler();
+    } else {
+      oldValue = effect.run();
+    }
+  } else {
+    // watchEffect
+    effect.run();
+  }
 
   // 停止监听函数
   const unwatch = () => {
+    callCleanup(); // 清理最后一次副作用
     effect.stop();
   };
 
