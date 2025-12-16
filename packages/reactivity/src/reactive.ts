@@ -11,7 +11,7 @@ function createReactiveObject(target) {
   }
 
   // 若已经是响应式对象则直接返回
-  if (target[ReactiveFlags.IS_REACTIVE]) {
+  if (isReactive(target)) {
     return target;
   }
 
@@ -33,4 +33,8 @@ export function reactive(target) {
 
 export function toReactive(value) {
   return isObject(value) ? reactive(value) : value;
+}
+
+export function isReactive(obj) {
+  return obj ? obj[ReactiveFlags.IS_REACTIVE] === true : false;
 }

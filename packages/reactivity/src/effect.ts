@@ -42,8 +42,8 @@ export class ReactiveEffect {
   deps = []; // 记录当前effect关联的依赖
   _depsLength = 0;
   _dirtyLevel = DirtyLevels.DIRTY;
+  active = true; // 是否需要响应式
 
-  public active = true; // 是否需要响应式
   constructor(public fn: Function, public scheduler: Function) {}
 
   public get dirty() {
@@ -73,6 +73,14 @@ export class ReactiveEffect {
       this._running--;
       postCleanEffect(this);
       activeEffect = lastEffect;
+    }
+  }
+
+  stop() {
+    if (this.active) {
+      preCleanEffect(this);
+      postCleanEffect(this);
+      this.active = false;
     }
   }
 }
