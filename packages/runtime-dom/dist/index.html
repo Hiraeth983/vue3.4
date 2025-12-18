@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module">
+      import { createRenderer, render, h } from "./runtime-dom.esm.js";
+      // import { h } from "/node_modules/vue/dist/vue.runtime.esm-browser.js";
+
+      const vnode = h(
+        "h1",
+        {
+          style: { color: "red" },
+        },
+        [h("p", "hello"), h("p", "world")]
+      );
+
+      render(vnode, app);
+
+      setTimeout(() => {
+        render(null, app);
+      }, 1000);
+    </script>
+  </body>
+</html>
