@@ -8,6 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@vue/reactivity':
+        specifier: ^3.5.25
+        version: 3.5.25
+      '@vue/shared':
+        specifier: ^3.5.25
+        version: 3.5.25
       vue:
         specifier: ^3.5.25
         version: 3.5.25(typescript@5.9.3)
@@ -24,6 +30,24 @@ importers:
 
   packages/reactivity:
     dependencies:
+      '@vue/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/runtime-core:
+    dependencies:
+      '@vue/reactivity':
+        specifier: workspace:^
+        version: link:../reactivity
+      '@vue/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/runtime-dom:
+    dependencies:
+      '@vue/runtime-core':
+        specifier: workspace:^
+        version: link:../runtime-core
       '@vue/shared':
         specifier: workspace:*
         version: link:../shared

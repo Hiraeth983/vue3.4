@@ -6,6 +6,9 @@ export const isFunction = (val: unknown): val is Function =>
 
 export const isArray = Array.isArray;
 
+export const isString = (val: unknown): val is string =>
+  typeof val === "string";
+
 export const isMap = (val: unknown): val is Map<any, any> =>
   toTypeString(val) === "[object Map]";
 export const isSet = (val: unknown): val is Set<any> =>
@@ -17,3 +20,5 @@ export const toTypeString = (value: unknown): string =>
 
 export const isPlainObject = (val: unknown): val is object =>
   toTypeString(val) === "[object Object]";
+
+export * from "./shapeFlages";
