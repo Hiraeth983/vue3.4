@@ -1,4 +1,4 @@
-import { isArray, isString, ShapeFlags } from "@vue/shared";
+import { isArray, isNumber, isString, ShapeFlags } from "@vue/shared";
 
 export const Text = Symbol.for("v-txt");
 export const Fragment = Symbol.for("v-fgt");
@@ -33,4 +33,12 @@ export function isVnode(value) {
 
 export function isSameVnode(n1, n2) {
   return n1.type === n2.type && n1.key === n2.key;
+}
+
+export function normalizeVnode(child) {
+  // 简化版本，后续完善
+  if (isString(child) || isNumber(child)) {
+    return createVnode(Text, null, String(child));
+  }
+  return child;
 }

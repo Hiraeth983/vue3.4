@@ -1,6 +1,6 @@
 // 对节点元素的增删改查
 export const nodeOps = {
-  // anchor 是锚点/参考节点，用于指定新节点插入的位置
+  // anchor 是锚点/参考节点，用于指定新节点插入的位置，插入到 anchor 前
   insert: (child, parent, anchor) => {
     parent.insertBefore(child, anchor || null);
   },

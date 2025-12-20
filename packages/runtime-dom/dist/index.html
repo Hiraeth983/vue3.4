@@ -3,27 +3,168 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Document</title>
+    <title>Runtime 测试用例</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 20px;
+      }
+      #app {
+        border: 2px solid #333;
+        padding: 20px;
+        min-height: 100px;
+      }
+      button {
+        margin: 5px;
+        padding: 8px 16px;
+        cursor: pointer;
+      }
+      .red {
+        color: red;
+      }
+      .blue {
+        color: blue;
+      }
+      .green {
+        color: green;
+      }
+    </style>
   </head>
   <body>
+    <h2>Runtime 测试</h2>
+    <div>
+      <button onclick="test1()">1. 基础挂载</button>
+      <button onclick="test2()">2. 属性更新</button>
+      <button onclick="test3()">3. 文本更新</button>
+      <button onclick="test4()">4. 数组新增</button>
+      <button onclick="test5()">5. 数组删除</button>
+      <button onclick="test6()">6. Text节点</button>
+      <button onclick="test7()">7. Fragment</button>
+      <button onclick="test8()">8. 卸载</button>
+      <button onclick="test9()">9. 类型变更</button>
+    </div>
+    <hr />
     <div id="app"></div>
+
     <script type="module">
-      import { createRenderer, render, h } from "./runtime-dom.esm.js";
-      // import { h } from "/node_modules/vue/dist/vue.runtime.esm-browser.js";
+      import { render, h, Text, Fragment } from "./runtime-dom.esm.js";
 
-      const vnode = h(
-        "h1",
-        {
-          style: { color: "red" },
-        },
-        [h("p", "hello"), h("p", "world")]
-      );
+      // 挂载到 window 方便按钮调用
+      window.render = render;
+      window.h = h;
+      window.Text = Text;
+      window.Fragment = Fragment;
 
-      render(vnode, app);
+      // 1. 基础挂载
+      window.test1 = () => {
+        const vnode = h(
+          "div",
+          { class: "red", style: { fontSize: "20px" } },
+          "Hello World"
+        );
+        render(vnode, app);
+        console.log("✅ 测试1: 基础挂载");
+      };
 
-      setTimeout(() => {
+      // 2. 属性更新（class: red → blue，新增 id，移除 style）
+      window.test2 = () => {
+        const vnode = h("div", { class: "blue", id: "box" }, "属性已更新");
+        render(vnode, app);
+        console.log("✅ 测试2: 属性更新 (red→blue, +id, -style)");
+      };
+
+      // 3. 文本 children 更新
+      window.test3 = () => {
+        const vnode = h("div", { class: "green" }, "文本内容变了！");
+        render(vnode, app);
+        console.log("✅ 测试3: 文本更新");
+      };
+
+      // 4. 数组 children - 新增节点
+      // 先渲染 [A, B]，再渲染 [A, B, C, D]
+      window.test4 = () => {
+        // 第一次：两个子节点
+        const vnode1 = h("ul", null, [
+          h("li", { key: "a" }, "A"),
+          h("li", { key: "b" }, "B"),
+        ]);
+        render(vnode1, app);
+
+        setTimeout(() => {
+          // 第二次：新增 C, D
+          const vnode2 = h("ul", null, [
+            h("li", { key: "a" }, "A"),
+            h("li", { key: "b" }, "B"),
+            h("li", { key: "c" }, "C (新增)"),
+            h("li", { key: "d" }, "D (新增)"),
+          ]);
+          render(vnode2, app);
+          console.log("✅ 测试4: 数组新增 [A,B] → [A,B,C,D]");
+        }, 500);
+      };
+
+      // 5. 数组 children - 删除节点
+      // 先渲染 [A, B, C, D]，再渲染 [A, B]
+      window.test5 = () => {
+        const vnode1 = h("ul", null, [
+          h("li", { key: "a" }, "A"),
+          h("li", { key: "b" }, "B"),
+          h("li", { key: "c" }, "C"),
+          h("li", { key: "d" }, "D"),
+        ]);
+        render(vnode1, app);
+
+        setTimeout(() => {
+          const vnode2 = h("ul", null, [
+            h("li", { key: "a" }, "A"),
+            h("li", { key: "b" }, "B"),
+          ]);
+          render(vnode2, app);
+          console.log("✅ 测试5: 数组删除 [A,B,C,D] → [A,B]");
+        }, 500);
+      };
+
+      // 6. Text 纯文本节点
+      window.test6 = () => {
+        const vnode = h("div", null, [
+          h(Text, null, "这是 Text 节点"),
+          h("span", { style: { color: "red" } }, " (红色span)"),
+        ]);
+        render(vnode, app);
+        console.log("✅ 测试6: Text 节点");
+      };
+
+      // 7. Fragment 多根节点
+      window.test7 = () => {
+        const vnode = h(Fragment, null, [
+          h("p", null, "Fragment 子节点 1"),
+          h("p", null, "Fragment 子节点 2"),
+          h("p", null, "Fragment 子节点 3"),
+        ]);
+        render(vnode, app);
+        console.log("✅ 测试7: Fragment (无包裹元素)");
+      };
+
+      // 8. 卸载
+      window.test8 = () => {
         render(null, app);
-      }, 1000);
+        console.log("✅ 测试8: 卸载");
+      };
+
+      // 9. 类型变更（div → span，触发卸载重建）
+      window.test9 = () => {
+        const vnode1 = h("div", { class: "red" }, "我是 DIV");
+        render(vnode1, app);
+
+        setTimeout(() => {
+          const vnode2 = h("span", { class: "blue" }, "我变成 SPAN 了");
+          render(vnode2, app);
+          console.log("✅ 测试9: 类型变更 div → span");
+        }, 500);
+      };
+
+      // 默认先跑测试1
+      test1();
     </script>
   </body>
 </html>
