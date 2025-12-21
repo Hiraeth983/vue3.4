@@ -129,29 +129,38 @@ export function createRenderer(renderOptions) {
 
       for (let i = s1; i <= e1; i++) {
         const oldChild = c1[i];
-        const newIndex = keyToNewIndexMap.get(oldChild);
+        const newIndex = keyToNewIndexMap.get(oldChild.key);
 
         if (newIndex === undefined) {
           // 在新的数组中不存在 卸载
           unmount(oldChild);
         } else {
+          // 记录 新索引 -> 旧索引 的映射（+1 是为了区分 0 和未匹配）
+          newIndexToOldIndexMap[newIndex - s2] = i + 1;
           // 复用 比较节点差异，更新属性和儿子
           patch(oldChild, c2[newIndex], container);
         }
       }
 
       // 5.3 移动和新增（倒序 + LIS 优化）
+      const increasingNewIndexSequence = getSequence(newIndexToOldIndexMap);
+      let j = increasingNewIndexSequence.length - 1;
+
       for (let i = toBePatched - 1; i >= 0; i--) {
         // 根据新数组，倒序插入
         const nextIndex = s2 + i;
         const nextChild = c2[nextIndex];
         const anchor = c2[nextIndex + 1]?.el || null;
 
-        // el不存在 新增节点 patch
-        if (!nextChild.el) {
+        if (newIndexToOldIndexMap[i] === 0) {
+          // 新增节点
           patch(null, nextChild, container, anchor);
-        } else {
+        } else if (j < 0 || i !== increasingNewIndexSequence[j]) {
+          // 不在 LIS 中，需要移动
           hostInsert(nextChild.el, container, anchor);
+        } else {
+          // 在 LIS 中，无需移动
+          j--;
         }
       }
     }
@@ -317,4 +326,48 @@ export function createRenderer(renderOptions) {
   return {
     render,
   };
+}
+
+function getSequence(arr) {
+  const p = arr.slice();
+  const result = [0];
+  let i, j, u, v, c;
+  const len = arr.length;
+
+  for (i = 0; i < len; i++) {
+    const arrI = arr[i];
+    if (arrI !== 0) {
+      j = result[result.length - 1];
+      if (arr[j] < arrI) {
+        p[i] = j;
+        result.push(i);
+        continue;
+      }
+      // 二分查找
+      u = 0;
+      v = result.length - 1;
+      while (u < v) {
+        c = (u + v) >> 1;
+        if (arr[result[c]] < arrI) {
+          u = c + 1;
+        } else {
+          v = c;
+        }
+      }
+      if (arrI < arr[result[u]]) {
+        if (u > 0) {
+          p[i] = result[u - 1];
+        }
+        result[u] = i;
+      }
+    }
+  }
+  // 回溯
+  u = result.length;
+  v = result[u - 1];
+  while (u-- > 0) {
+    result[u] = v;
+    v = p[v];
+  }
+  return result;
 }

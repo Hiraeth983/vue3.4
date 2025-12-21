@@ -254,21 +254,26 @@ function createRenderer(renderOptions2) {
       const newIndexToOldIndexMap = new Array(toBePatched).fill(0);
       for (let i2 = s1; i2 <= e1; i2++) {
         const oldChild = c1[i2];
-        const newIndex = keyToNewIndexMap.get(oldChild);
+        const newIndex = keyToNewIndexMap.get(oldChild.key);
         if (newIndex === void 0) {
           unmount(oldChild);
         } else {
+          newIndexToOldIndexMap[newIndex - s2] = i2 + 1;
           patch(oldChild, c2[newIndex], container);
         }
       }
+      const increasingNewIndexSequence = getSequence(newIndexToOldIndexMap);
+      let j = increasingNewIndexSequence.length - 1;
       for (let i2 = toBePatched - 1; i2 >= 0; i2--) {
         const nextIndex = s2 + i2;
         const nextChild = c2[nextIndex];
         const anchor = c2[nextIndex + 1]?.el || null;
-        if (!nextChild.el) {
+        if (newIndexToOldIndexMap[i2] === 0) {
           patch(null, nextChild, container, anchor);
-        } else {
+        } else if (j < 0 || i2 !== increasingNewIndexSequence[j]) {
           hostInsert(nextChild.el, container, anchor);
+        } else {
+          j--;
         }
       }
     }
@@ -385,6 +390,46 @@ function createRenderer(renderOptions2) {
   return {
     render: render2
   };
+}
+function getSequence(arr) {
+  const p = arr.slice();
+  const result = [0];
+  let i, j, u, v, c;
+  const len = arr.length;
+  for (i = 0; i < len; i++) {
+    const arrI = arr[i];
+    if (arrI !== 0) {
+      j = result[result.length - 1];
+      if (arr[j] < arrI) {
+        p[i] = j;
+        result.push(i);
+        continue;
+      }
+      u = 0;
+      v = result.length - 1;
+      while (u < v) {
+        c = u + v >> 1;
+        if (arr[result[c]] < arrI) {
+          u = c + 1;
+        } else {
+          v = c;
+        }
+      }
+      if (arrI < arr[result[u]]) {
+        if (u > 0) {
+          p[i] = result[u - 1];
+        }
+        result[u] = i;
+      }
+    }
+  }
+  u = result.length;
+  v = result[u - 1];
+  while (u-- > 0) {
+    result[u] = v;
+    v = p[v];
+  }
+  return result;
 }
 
 // packages/runtime-dom/src/index.ts

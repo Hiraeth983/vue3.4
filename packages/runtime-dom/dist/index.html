@@ -42,6 +42,10 @@
       <button onclick="test7()">7. Fragment</button>
       <button onclick="test8()">8. 卸载</button>
       <button onclick="test9()">9. 类型变更</button>
+      <button onclick="test10()">10. 乱序移动</button>
+      <button onclick="test11()">11. 乱序+新增</button>
+      <button onclick="test12()">12. 乱序+删除</button>
+      <button onclick="test13()">13. 复杂乱序</button>
     </div>
     <hr />
     <div id="app"></div>
@@ -160,6 +164,101 @@
           const vnode2 = h("span", { class: "blue" }, "我变成 SPAN 了");
           render(vnode2, app);
           console.log("✅ 测试9: 类型变更 div → span");
+        }, 500);
+      };
+
+      // 10. 乱序移动 [A, B, C, D] → [A, C, B, D]
+      window.test10 = () => {
+        const vnode1 = h("ul", null, [
+          h("li", { key: "a" }, "A"),
+          h("li", { key: "b" }, "B"),
+          h("li", { key: "c" }, "C"),
+          h("li", { key: "d" }, "D"),
+        ]);
+        render(vnode1, app);
+
+        setTimeout(() => {
+          const vnode2 = h("ul", null, [
+            h("li", { key: "a" }, "A"),
+            h("li", { key: "c" }, "C (移动)"),
+            h("li", { key: "b" }, "B (移动)"),
+            h("li", { key: "d" }, "D"),
+          ]);
+          render(vnode2, app);
+          console.log("✅ 测试10: 乱序移动 [A,B,C,D] → [A,C,B,D]");
+        }, 500);
+      };
+
+      // 11. 乱序 + 新增 [A, B, C] → [A, D, B, E, C]
+      window.test11 = () => {
+        const vnode1 = h("ul", null, [
+          h("li", { key: "a" }, "A"),
+          h("li", { key: "b" }, "B"),
+          h("li", { key: "c" }, "C"),
+        ]);
+        render(vnode1, app);
+
+        setTimeout(() => {
+          const vnode2 = h("ul", null, [
+            h("li", { key: "a" }, "A"),
+            h("li", { key: "d" }, "D (新增)"),
+            h("li", { key: "b" }, "B"),
+            h("li", { key: "e" }, "E (新增)"),
+            h("li", { key: "c" }, "C"),
+          ]);
+          render(vnode2, app);
+          console.log("✅ 测试11: 乱序+新增 [A,B,C] → [A,D,B,E,C]");
+        }, 500);
+      };
+
+      // 12. 乱序 + 删除 [A, B, C, D, E] → [A, C, E]
+      window.test12 = () => {
+        const vnode1 = h("ul", null, [
+          h("li", { key: "a" }, "A"),
+          h("li", { key: "b" }, "B"),
+          h("li", { key: "c" }, "C"),
+          h("li", { key: "d" }, "D"),
+          h("li", { key: "e" }, "E"),
+        ]);
+        render(vnode1, app);
+
+        setTimeout(() => {
+          const vnode2 = h("ul", null, [
+            h("li", { key: "a" }, "A"),
+            h("li", { key: "c" }, "C"),
+            h("li", { key: "e" }, "E"),
+          ]);
+          render(vnode2, app);
+          console.log("✅ 测试12: 乱序+删除 [A,B,C,D,E] → [A,C,E]");
+        }, 500);
+      };
+
+      // 13. 复杂乱序：移动 + 新增 + 删除
+      // [A, B, C, D, E, F] → [A, D, C, G, B, F]
+      window.test13 = () => {
+        const vnode1 = h("ul", null, [
+          h("li", { key: "a" }, "A"),
+          h("li", { key: "b" }, "B"),
+          h("li", { key: "c" }, "C"),
+          h("li", { key: "d" }, "D"),
+          h("li", { key: "e" }, "E"),
+          h("li", { key: "f" }, "F"),
+        ]);
+        render(vnode1, app);
+
+        setTimeout(() => {
+          const vnode2 = h("ul", null, [
+            h("li", { key: "a" }, "A"),
+            h("li", { key: "d" }, "D (移动)"),
+            h("li", { key: "c" }, "C"),
+            h("li", { key: "g" }, "G (新增)"),
+            h("li", { key: "b" }, "B (移动)"),
+            h("li", { key: "f" }, "F"),
+          ]);
+          render(vnode2, app);
+          console.log(
+            "✅ 测试13: 复杂乱序 [A,B,C,D,E,F] → [A,D,C,G,B,F] (E删除, G新增, B/D移动)"
+          );
         }, 500);
       };
 
