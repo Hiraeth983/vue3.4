@@ -4,8 +4,9 @@ import { reactive, ReactiveEffect } from "@vue/reactivity";
 import { queueJob } from "./scheduler";
 import { getSequence } from "./utils/sequence";
 import { createComponentProxy } from "./componentPublicInstance";
-import { initProps } from "./componentProps";
+import { initProps, updateProps } from "./componentProps";
 import { createComponentInstance } from "./component";
+import { shouldUpdateComponent } from "./componentRenderUtils";
 
 export function createRenderer(renderOptions) {
   const {
@@ -87,6 +88,12 @@ export function createRenderer(renderOptions) {
         vnode.el = subTree.el; // 组件的 el 指向根元素
       } else {
         // 更新
+        let { next, vnode } = instance;
+        // 如果存在next，说明是父组件触发的更新，需要更新props
+        if (next) {
+          next.el = vnode.el;
+          updateComponentPreRender(instance, next);
+        }
         const subTree = render.call(instance.proxy, instance.proxy);
         patch(instance.subTree, subTree, container, anchor);
         instance.subTree = subTree;
@@ -99,6 +106,13 @@ export function createRenderer(renderOptions) {
 
     instance.update = () => effect.run();
     instance.update();
+  };
+
+  const updateComponentPreRender = (instance, nextVNode) => {
+    instance.vnode = nextVNode;
+    instance.next = null;
+
+    updateProps(instance, nextVNode.props);
   };
 
   const patchProps = (el, oldProps, newProps) => {
@@ -275,6 +289,19 @@ export function createRenderer(renderOptions) {
     patchChildren(n1, n2, el);
   };
 
+  const patchComponent = (n1, n2, container) => {
+    // 复用实例
+    const instance = (n2.component = n1.component);
+
+    if (shouldUpdateComponent(n1, n2)) {
+      instance.next = n2;
+      instance.update();
+    } else {
+      n2.el = n1.el;
+      instance.vnode = n2;
+    }
+  };
+
   const processText = (n1, n2, container) => {
     if (n1 === null) {
       // 挂载：创建文本节点
@@ -312,7 +339,7 @@ export function createRenderer(renderOptions) {
     if (n1 === null) {
       mountComponent(n2, container, anchor);
     } else {
-      // patchComponent()
+      patchComponent(n1, n2, container);
     }
   };
 

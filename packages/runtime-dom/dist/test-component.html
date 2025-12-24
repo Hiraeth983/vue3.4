@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Component 测试用例</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 20px;
+      }
+      #app {
+        border: 2px solid #333;
+        padding: 20px;
+        min-height: 100px;
+      }
+      button {
+        margin: 5px;
+        padding: 8px 16px;
+        cursor: pointer;
+      }
+      .box {
+        padding: 10px;
+        margin: 10px 0;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+      .red { color: red; }
+      .blue { color: blue; }
+      .green { color: green; }
+    </style>
+  </head>
+  <body>
+    <h2>Component 系统测试</h2>
+    <div>
+      <button onclick="test1()">1. 组件挂载</button>
+      <button onclick="test2()">2. 组件自身状态更新</button>
+      <button onclick="test3()">3. 父组件传 props</button>
+      <button onclick="test4()">4. props 更新触发子组件</button>
+      <button onclick="test5()">5. attrs 透传</button>
+      <button onclick="test6()">6. 嵌套组件</button>
+      <button onclick="test7()">7. 卸载组件</button>
+    </div>
+    <hr />
+    <div id="app"></div>
+
+    <script type="module">
+      import { render, h, Text, Fragment } from "./runtime-dom.esm.js";
+
+      window.render = render;
+      window.h = h;
+
+      // ========== 测试 1: 基础组件挂载 ==========
+      window.test1 = () => {
+        const MyComponent = {
+          data() {
+            return { count: 0 };
+          },
+          render() {
+            return h("div", { class: "box" }, [
+              h("h3", null, "基础组件"),
+              h("p", null, `计数: ${this.count}`),
+            ]);
+          },
+        };
+
+        render(h(MyComponent), app);
+        console.log("✅ 测试1: 组件挂载成功");
+      };
+
+      // ========== 测试 2: 组件自身状态更新 ==========
+      window.test2 = () => {
+        const Counter = {
+          data() {
+            return { count: 0 };
+          },
+          render() {
+            const self = this;
+            return h("div", { class: "box" }, [
+              h("h3", null, "计数器组件"),
+              h("p", null, `当前计数: ${this.count}`),
+              h(
+                "button",
+                {
+                  onClick: () => {
+                    self.count++;
+                    console.log("点击了，count =", self.count);
+                  },
+                },
+                "+1"
+              ),
+              h(
+                "button",
+                {
+                  onClick: () => {
+                    self.count--;
+                  },
+                },
+                "-1"
+              ),
+            ]);
+          },
+        };
+
+        render(h(Counter), app);
+        console.log("✅ 测试2: 组件自身状态更新 - 点击按钮测试");
+      };
+
+      // ========== 测试 3: 父组件传 props ==========
+      window.test3 = () => {
+        // 子组件
+        const Child = {
+          props: {
+            title: String,
+            count: Number,
+          },
+          render() {
+            return h("div", { class: "box", style: { background: "#f0f0f0" } }, [
+              h("h4", null, `子组件 - ${this.title}`),
+              h("p", null, `接收的 count: ${this.count}`),
+            ]);
+          },
+        };
+
+        // 父组件
+        const Parent = {
+          data() {
+            return { num: 100 };
+          },
+          render() {
+            return h("div", { class: "box" }, [
+              h("h3", null, "父组件"),
+              h("p", null, `父组件 num: ${this.num}`),
+              h(Child, { title: "我是子组件", count: this.num }),
+            ]);
+          },
+        };
+
+        render(h(Parent), app);
+        console.log("✅ 测试3: 父组件传 props 给子组件");
+      };
+
+      // ========== 测试 4: props 更新触发子组件更新 (patchComponent) ==========
+      window.test4 = () => {
+        // 子组件
+        const Child = {
+          props: {
+            count: Number,
+          },
+          render() {
+            console.log("Child render, count =", this.count);
+            return h("div", { class: "box", style: { background: "#e0f0ff" } }, [
+              h("h4", null, "子组件"),
+              h("p", { class: this.count > 5 ? "red" : "blue" }, `count: ${this.count}`),
+              h("p", { style: { fontSize: "12px", color: "#666" } }, "(count > 5 时变红)"),
+            ]);
+          },
+        };
+
+        // 父组件
+        const Parent = {
+          data() {
+            return { num: 0 };
+          },
+          render() {
+            const self = this;
+            return h("div", { class: "box" }, [
+              h("h3", null, "父组件 (patchComponent 测试)"),
+              h("p", null, `父组件 num: ${this.num}`),
+              h(
+                "button",
+                {
+                  onClick: () => {
+                    self.num++;
+                    console.log("父组件 num++, 现在是", self.num);
+                  },
+                },
+                "num++"
+              ),
+              h(
+                "button",
+                {
+                  onClick: () => {
+                    self.num += 5;
+                  },
+                },
+                "num+=5"
+              ),
+              h(Child, { count: this.num }),
+            ]);
+          },
+        };
+
+        render(h(Parent), app);
+        console.log("✅ 测试4: props 更新触发子组件更新 - 点击按钮测试 patchComponent");
+      };
+
+      // ========== 测试 5: attrs 透传 ==========
+      window.test5 = () => {
+        // 子组件只声明了 title，其他属性应该进入 attrs
+        const Child = {
+          props: {
+            title: String,
+          },
+          render() {
+            // $attrs 包含未声明的属性
+            console.log("Child $attrs:", this.$attrs);
+            return h("div", this.$attrs, [
+              h("h4", null, this.title),
+              h("p", null, "查看控制台看 $attrs"),
+            ]);
+          },
+        };
+
+        const Parent = {
+          render() {
+            return h("div", { class: "box" }, [
+              h("h3", null, "attrs 透传测试"),
+              h(Child, {
+                title: "我是标题",
+                class: "box green",
+                id: "child-box",
+                "data-test": "hello",
+              }),
+            ]);
+          },
+        };
+
+        render(h(Parent), app);
+        console.log("✅ 测试5: attrs 透传 (class, id, data-test 应该在 $attrs 中)");
+      };
+
+      // ========== 测试 6: 嵌套组件 ==========
+      window.test6 = () => {
+        const GrandChild = {
+          props: { value: Number },
+          render() {
+            return h("span", { class: "red" }, `[孙组件: ${this.value}]`);
+          },
+        };
+
+        const Child = {
+          props: { count: Number },
+          data() {
+            return { childData: "子组件数据" };
+          },
+          render() {
+            return h("div", { class: "box", style: { background: "#f5f5f5" } }, [
+              h("h4", null, "子组件"),
+              h("p", null, `props.count: ${this.count}`),
+              h("p", null, `data.childData: ${this.childData}`),
+              h(GrandChild, { value: this.count * 10 }),
+            ]);
+          },
+        };
+
+        const Parent = {
+          data() {
+            return { num: 1 };
+          },
+          render() {
+            const self = this;
+            return h("div", { class: "box" }, [
+              h("h3", null, "嵌套组件测试"),
+              h("p", null, `父组件 num: ${this.num}`),
+              h("button", { onClick: () => self.num++ }, "num++"),
+              h(Child, { count: this.num }),
+            ]);
+          },
+        };
+
+        render(h(Parent), app);
+        console.log("✅ 测试6: 嵌套组件 (父 → 子 → 孙)");
+      };
+
+      // ========== 测试 7: 卸载组件 ==========
+      window.test7 = () => {
+        render(null, app);
+        console.log("✅ 测试7: 卸载组件");
+      };
+
+      // 默认执行测试1
+      test1();
+    </script>
+  </body>
+</html>

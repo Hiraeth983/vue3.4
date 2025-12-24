@@ -1,3 +1,5 @@
+import { hasOwn } from "@vue/shared";
+
 // 特殊属性映射表
 export const publicPropertiesMap = {
   $attrs: (i) => i.attrs,
@@ -12,17 +14,17 @@ export const PublicInstanceProxyHandlers = {
     const { data, props, setupState } = target;
 
     // 1. 优先从 setupState 取（Composition API）
-    if (setupState && key in setupState) {
+    if (setupState && hasOwn(setupState, key)) {
       return setupState[key];
     }
 
     // 2. 再从 data 取（Options API 的 data）
-    if (data && key in data) {
+    if (data && hasOwn(data, key)) {
       return data[key];
     }
 
     // 3. 再从 props 取
-    if (props && key in props) {
+    if (props && hasOwn(props, key)) {
       return props[key];
     }
 
@@ -38,19 +40,19 @@ export const PublicInstanceProxyHandlers = {
     const { data, props, setupState } = target;
 
     // setupState 可写
-    if (setupState && key in setupState) {
+    if (setupState && hasOwn(setupState, key)) {
       setupState[key] = value;
       return true;
     }
 
     // data 可写
-    if (data && key in data) {
+    if (data && hasOwn(data, key)) {
       data[key] = value;
       return true;
     }
 
     // props 只读警告
-    if (props && key in props) {
+    if (props && hasOwn(props, key)) {
       console.warn(`Props "${String(key)}" 是只读的，不能修改`);
       return false;
     }
@@ -61,10 +63,10 @@ export const PublicInstanceProxyHandlers = {
   has(target, key) {
     const { data, props, setupState } = target;
     return (
-      (setupState && key in setupState) ||
-      (data && key in data) ||
-      (props && key in props) ||
-      key in publicPropertiesMap
+      (setupState && hasOwn(setupState, key)) ||
+      (data && hasOwn(data, key)) ||
+      (props && hasOwn(props, key)) ||
+      hasOwn(publicPropertiesMap, key)
     );
   },
 };

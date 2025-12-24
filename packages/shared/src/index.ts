@@ -23,4 +23,10 @@ export const toTypeString = (value: unknown): string =>
 export const isPlainObject = (val: unknown): val is object =>
   toTypeString(val) === "[object Object]";
 
+const hasOwnProperty = Object.prototype.hasOwnProperty;
+export const hasOwn = (
+  val: object,
+  key: string | symbol
+): key is keyof typeof val => hasOwnProperty.call(val, key);
+
 export * from "./shapeFlages";
