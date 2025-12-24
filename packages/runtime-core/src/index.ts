@@ -2,3 +2,6 @@
 export * from "./h";
 export * from "./vnode";
 export * from "./renderer";
+export * from "./scheduler";
+
+export { getCurrentInstance } from "./component";

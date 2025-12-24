@@ -1,10 +1,14 @@
-import { isArray, isNumber, isString, ShapeFlags } from "@vue/shared";
+import { isArray, isNumber, isObject, isString, ShapeFlags } from "@vue/shared";
 
 export const Text = Symbol.for("v-txt");
 export const Fragment = Symbol.for("v-fgt");
 
 export function createVnode(type, props, children?) {
-  const shapeFlag = isString(type) ? ShapeFlags.ELEMENT : 0;
+  const shapeFlag = isString(type)
+    ? ShapeFlags.ELEMENT // 元素
+    : isObject(type)
+    ? ShapeFlags.STATEFUL_COMPONENT // 组件
+    : 0;
   const vnode = {
     __v_isVnode: true,
     type,
@@ -12,6 +16,7 @@ export function createVnode(type, props, children?) {
     children,
     key: props?.key,
     el: null, // 虚拟节点对应的真实节点
+    component: null,
     shapeFlag,
   };
 

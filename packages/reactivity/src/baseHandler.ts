@@ -27,8 +27,8 @@ function createArrayInstrumentations() {
   return instrumentations;
 }
 
-export const mutableHandlers: ProxyHandler<any> = {
-  get(target, key, receiver) {
+function createGetter(isShallow = false) {
+  return function get(target, key, receiver) {
     if (key === ReactiveFlags.IS_REACTIVE) {
       return true;
     }
@@ -47,13 +47,16 @@ export const mutableHandlers: ProxyHandler<any> = {
     track(target, key);
 
     const result = Reflect.get(target, key, receiver); // 见 question_01.js
-    if (isObject(result)) {
+    if (!isShallow && isObject(result)) {
       return reactive(result);
     }
 
     return result;
-  },
-  set(target, key, value, receiver) {
+  };
+}
+
+function createSetter() {
+  return function set(target, key, value, receiver) {
     // 副作用注册的函数重新触发
     // 收集的依赖重新执行
     const oldValue = target[key];
@@ -65,5 +68,15 @@ export const mutableHandlers: ProxyHandler<any> = {
     }
 
     return result;
-  },
+  };
+}
+
+export const mutableHandlers: ProxyHandler<any> = {
+  get: createGetter(false),
+  set: createSetter(),
+};
+
+export const shallowReactiveHandlers: ProxyHandler<any> = {
+  get: createGetter(true),
+  set: createSetter(),
 };

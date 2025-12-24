@@ -1,11 +1,13 @@
 import { isObject } from "@vue/shared";
-import { mutableHandlers } from "./baseHandler";
+import { mutableHandlers, shallowReactiveHandlers } from "./baseHandler";
 import { ReactiveFlags } from "./constants";
 
 // 记录代理结果 复用
 const reactiveMap = new WeakMap();
+// 分类存储，防止同一个对象同时创建reactive和shallowReactive时命中缓存时返回错误的响应式对象
+const shallowReactiveMap = new WeakMap();
 
-function createReactiveObject(target) {
+function createReactiveObject(target, isShallow = false) {
   if (!isObject(target)) {
     return target;
   }
@@ -15,20 +17,28 @@ function createReactiveObject(target) {
     return target;
   }
 
+  // 根据类型选择缓存和 handler
+  const proxyMap = isShallow ? shallowReactiveMap : reactiveMap;
+  const handlers = isShallow ? shallowReactiveHandlers : mutableHandlers;
+
   // 如果存在则复用
-  const existProxy = reactiveMap.get(target);
+  const existProxy = proxyMap.get(target);
   if (existProxy) {
     return existProxy;
   }
 
-  const proxy = new Proxy(target, mutableHandlers);
+  const proxy = new Proxy(target, handlers);
   // 根据对象去缓存代理后的结果
-  reactiveMap.set(target, proxy);
+  proxyMap.set(target, proxy);
   return proxy;
 }
 
 export function reactive(target) {
   return createReactiveObject(target);
+}
+
+export function shallowReactive(target) {
+  return createReactiveObject(target, true);
 }
 
 export function toReactive(value) {

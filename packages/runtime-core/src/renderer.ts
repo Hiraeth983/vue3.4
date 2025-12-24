@@ -1,5 +1,11 @@
 import { ShapeFlags } from "@vue/shared";
 import { isSameVnode, Text, Fragment, normalizeVnode } from "./vnode";
+import { reactive, ReactiveEffect } from "@vue/reactivity";
+import { queueJob } from "./scheduler";
+import { getSequence } from "./utils/sequence";
+import { createComponentProxy } from "./componentPublicInstance";
+import { initProps } from "./componentProps";
+import { createComponentInstance } from "./component";
 
 export function createRenderer(renderOptions) {
   const {
@@ -44,6 +50,55 @@ export function createRenderer(renderOptions) {
     }
 
     hostInsert(el, container, anchor);
+  };
+
+  const mountComponent = (vnode, container, anchor) => {
+    const { data = () => {} } = vnode.type;
+
+    // 创建组件实例
+    const instance = createComponentInstance(vnode, null);
+    // 挂载到 vnode 上（patchComponent 需要）
+    vnode.component = instance;
+
+    // 初始化props
+    initProps(instance, vnode.props);
+
+    // 创建代理
+    instance.proxy = createComponentProxy(instance);
+
+    // 初始化state
+    instance.data = reactive(data.call(instance.proxy));
+
+    // 设置渲染 effect
+    setupRenderEffect(instance, vnode, container, anchor);
+  };
+
+  const setupRenderEffect = (instance, vnode, container, anchor) => {
+    const componentUpdateFn = () => {
+      const { render } = instance.type;
+
+      if (!instance.isMounted) {
+        // 挂载
+        // render函数内部this指向state，同时传递参数proxy
+        const subTree = render.call(instance.proxy, instance.proxy);
+        patch(null, subTree, container, anchor);
+        instance.isMounted = true;
+        instance.subTree = subTree;
+        vnode.el = subTree.el; // 组件的 el 指向根元素
+      } else {
+        // 更新
+        const subTree = render.call(instance.proxy, instance.proxy);
+        patch(instance.subTree, subTree, container, anchor);
+        instance.subTree = subTree;
+      }
+    };
+
+    const effect = new ReactiveEffect(componentUpdateFn, () =>
+      queueJob(instance.update)
+    );
+
+    instance.update = () => effect.run();
+    instance.update();
   };
 
   const patchProps = (el, oldProps, newProps) => {
@@ -253,6 +308,14 @@ export function createRenderer(renderOptions) {
     }
   };
 
+  const processComponent = (n1, n2, container, anchor = null) => {
+    if (n1 === null) {
+      mountComponent(n2, container, anchor);
+    } else {
+      // patchComponent()
+    }
+  };
+
   // 渲染和更新
   // | 参数      | 含义                 | 类型         |
   // |-----------|----------------------|--------------|
@@ -283,8 +346,11 @@ export function createRenderer(renderOptions) {
         break;
       default:
         if (shapeFlag & ShapeFlags.ELEMENT) {
+          // 处理元素
           processElement(n1, n2, container, anchor);
         } else if (shapeFlag & ShapeFlags.COMPONENT) {
+          // 处理组件 函数式组件（兼容Vue2）和状态组件
+          processComponent(n1, n2, container, anchor);
         }
     }
   };
@@ -326,48 +392,4 @@ export function createRenderer(renderOptions) {
   return {
     render,
   };
-}
-
-function getSequence(arr) {
-  const p = arr.slice();
-  const result = [0];
-  let i, j, u, v, c;
-  const len = arr.length;
-
-  for (i = 0; i < len; i++) {
-    const arrI = arr[i];
-    if (arrI !== 0) {
-      j = result[result.length - 1];
-      if (arr[j] < arrI) {
-        p[i] = j;
-        result.push(i);
-        continue;
-      }
-      // 二分查找
-      u = 0;
-      v = result.length - 1;
-      while (u < v) {
-        c = (u + v) >> 1;
-        if (arr[result[c]] < arrI) {
-          u = c + 1;
-        } else {
-          v = c;
-        }
-      }
-      if (arrI < arr[result[u]]) {
-        if (u > 0) {
-          p[i] = result[u - 1];
-        }
-        result[u] = i;
-      }
-    }
-  }
-  // 回溯
-  u = result.length;
-  v = result[u - 1];
-  while (u-- > 0) {
-    result[u] = v;
-    v = p[v];
-  }
-  return result;
 }
