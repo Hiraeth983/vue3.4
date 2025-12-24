@@ -29,4 +29,10 @@ export const hasOwn = (
   key: string | symbol
 ): key is keyof typeof val => hasOwnProperty.call(val, key);
 
+export const invokeArrayFns = (fns: Function[], ...arg: any[]) => {
+  for (let i = 0; i < fns.length; i++) {
+    fns[i](...arg);
+  }
+};
+
 export * from "./shapeFlages";

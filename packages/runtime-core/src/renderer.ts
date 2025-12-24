@@ -1,7 +1,7 @@
-import { ShapeFlags } from "@vue/shared";
+import { invokeArrayFns, ShapeFlags } from "@vue/shared";
 import { isSameVnode, Text, Fragment, normalizeVnode } from "./vnode";
 import { reactive, ReactiveEffect } from "@vue/reactivity";
-import { queueJob } from "./scheduler";
+import { queueJob, queuePostFlushCb } from "./scheduler";
 import { getSequence } from "./utils/sequence";
 import { createComponentProxy } from "./componentPublicInstance";
 import { initProps, updateProps } from "./componentProps";
@@ -79,24 +79,48 @@ export function createRenderer(renderOptions) {
       const { render } = instance.type;
 
       if (!instance.isMounted) {
-        // 挂载
+        // ========== 挂载 ==========
+
+        // beforeMount
+        if (instance.bm) {
+          invokeArrayFns(instance.bm);
+        }
+
         // render函数内部this指向state，同时传递参数proxy
         const subTree = render.call(instance.proxy, instance.proxy);
         patch(null, subTree, container, anchor);
+
         instance.isMounted = true;
         instance.subTree = subTree;
         vnode.el = subTree.el; // 组件的 el 指向根元素
+
+        // mounted (一步，DOM更新后执行)
+        if (instance.m) {
+          queuePostFlushCb(() => invokeArrayFns(instance.m));
+        }
       } else {
-        // 更新
+        // ========== 更新 ==========
+
+        // beforeUpdate
+        if (instance.bu) {
+          invokeArrayFns(instance.bu);
+        }
+
         let { next, vnode } = instance;
         // 如果存在next，说明是父组件触发的更新，需要更新props
         if (next) {
           next.el = vnode.el;
           updateComponentPreRender(instance, next);
         }
+
         const subTree = render.call(instance.proxy, instance.proxy);
         patch(instance.subTree, subTree, container, anchor);
         instance.subTree = subTree;
+
+        // updated（异步）
+        if (instance.u) {
+          queuePostFlushCb(() => invokeArrayFns(instance.u));
+        }
       }
     };
 
@@ -384,7 +408,12 @@ export function createRenderer(renderOptions) {
 
   // 卸载
   const unmount = (vnode) => {
-    const { type, children } = vnode;
+    const { type, children, shapeFlag } = vnode;
+
+    if (shapeFlag & ShapeFlags.COMPONENT) {
+      unmountComponent(vnode.component);
+      return;
+    }
 
     // Fragment 需要卸载所有 children
     if (type === Fragment) {
@@ -394,6 +423,22 @@ export function createRenderer(renderOptions) {
 
     // 普通元素直接移除
     hostRemove(vnode.el);
+  };
+
+  // 组件卸载函数
+  const unmountComponent = (instance) => {
+    // beforeUnmount
+    if (instance.bum) {
+      invokeArrayFns(instance.bum);
+    }
+
+    // 卸载子树
+    unmount(instance.subTree);
+
+    // unmounted（异步）
+    if (instance.um) {
+      queuePostFlushCb(() => invokeArrayFns(instance.um));
+    }
   };
 
   const unmountChildren = (children) => {

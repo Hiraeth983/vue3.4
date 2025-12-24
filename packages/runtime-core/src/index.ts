@@ -4,4 +4,13 @@ export * from "./vnode";
 export * from "./renderer";
 export * from "./scheduler";
 
+export {
+  onBeforeMount,
+  onMounted,
+  onBeforeUpdate,
+  onUpdated,
+  onBeforeUnmount,
+  onUnmounted,
+} from "./apiLifecycle";
+
 export { getCurrentInstance } from "./component";

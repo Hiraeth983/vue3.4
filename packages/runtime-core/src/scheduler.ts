@@ -1,22 +1,51 @@
-const queue = [];
-let isFlushing = false;
-const resolvePromise = Promise.resolve();
+const queue = []; // 待执行的任务队列（组件更新函数）
+const pendingPostFlushCbs = []; // post 阶段回调（mounted/updated 等）
+let isFlushing = false; // 是否正在刷新队列
+const resolvePromise = Promise.resolve(); // 用于创建微任务
 
+// 添加组件更新任务
 export function queueJob(job) {
+  // 去重：同一个组件的 update 函数只入队一次
   if (!queue.includes(job)) {
     queue.push(job);
   }
 
+  queueFlush(); // 触发刷新
+}
+
+// 添加 post 阶段回调（mounted/updated/unmounted 用）
+export function queuePostFlushCb(cb) {
+  if (!pendingPostFlushCbs.includes(cb)) {
+    pendingPostFlushCbs.push(cb);
+  }
+
+  queueFlush();
+}
+
+function queueFlush() {
   if (!isFlushing) {
     isFlushing = true;
+    resolvePromise.then(flushJobs);
+  }
+}
 
-    resolvePromise.then(() => {
-      isFlushing = false;
+function flushJobs() {
+  // 1. 执行组件更新任务
+  const currentQueue = queue.slice(0);
+  queue.length = 0;
+  currentQueue.forEach((job) => job());
 
-      const currentQueue = queue.slice(0);
-      queue.length = 0;
+  // 2. 执行 post 回调（生命周期钩子）
+  flushPostFlushCbs();
 
-      currentQueue.forEach((job) => job());
-    });
+  isFlushing = false;
+}
+
+function flushPostFlushCbs() {
+  if (pendingPostFlushCbs.length) {
+    // 去重并复制
+    const cbs = [...new Set(pendingPostFlushCbs)];
+    pendingPostFlushCbs.length = 0;
+    cbs.forEach((cb) => cb());
   }
 }
