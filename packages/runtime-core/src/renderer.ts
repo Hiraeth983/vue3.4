@@ -5,7 +5,7 @@ import { queueJob, queuePostFlushCb } from "./scheduler";
 import { getSequence } from "./utils/sequence";
 import { createComponentProxy } from "./componentPublicInstance";
 import { initProps, updateProps } from "./componentProps";
-import { createComponentInstance } from "./component";
+import { createComponentInstance, setupComponent } from "./component";
 import { shouldUpdateComponent } from "./componentRenderUtils";
 
 export function createRenderer(renderOptions) {
@@ -54,8 +54,6 @@ export function createRenderer(renderOptions) {
   };
 
   const mountComponent = (vnode, container, anchor) => {
-    const { data = () => {} } = vnode.type;
-
     // 创建组件实例
     const instance = createComponentInstance(vnode, null);
     // 挂载到 vnode 上（patchComponent 需要）
@@ -67,7 +65,11 @@ export function createRenderer(renderOptions) {
     // 创建代理
     instance.proxy = createComponentProxy(instance);
 
-    // 初始化state
+    // 执行 setup
+    setupComponent(instance);
+
+    // 初始化 data
+    const { data = () => {} } = vnode.type;
     instance.data = reactive(data.call(instance.proxy));
 
     // 设置渲染 effect
@@ -76,7 +78,10 @@ export function createRenderer(renderOptions) {
 
   const setupRenderEffect = (instance, vnode, container, anchor) => {
     const componentUpdateFn = () => {
-      const { render } = instance.type;
+      if (instance.isUnmounted) return;
+
+      // render 可能来自 setup 返回值，也可能来自组件定义，前者优先级较高
+      const render = instance.render || instance.type.render;
 
       if (!instance.isMounted) {
         // ========== 挂载 ==========
@@ -94,7 +99,7 @@ export function createRenderer(renderOptions) {
         instance.subTree = subTree;
         vnode.el = subTree.el; // 组件的 el 指向根元素
 
-        // mounted (一步，DOM更新后执行)
+        // mounted (异步，DOM更新后执行)
         if (instance.m) {
           queuePostFlushCb(() => invokeArrayFns(instance.m));
         }
@@ -427,6 +432,8 @@ export function createRenderer(renderOptions) {
 
   // 组件卸载函数
   const unmountComponent = (instance) => {
+    instance.isUnmounted = true;
+
     // beforeUnmount
     if (instance.bum) {
       invokeArrayFns(instance.bum);
@@ -448,7 +455,6 @@ export function createRenderer(renderOptions) {
   };
 
   const render = (vnode, container) => {
-    console.log(vnode, container, container._vnode);
     if (vnode === null) {
       if (container._vnode) {
         unmount(container._vnode);

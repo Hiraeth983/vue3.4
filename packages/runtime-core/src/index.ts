@@ -13,4 +13,5 @@ export {
   onUnmounted,
 } from "./apiLifecycle";
 
-export { getCurrentInstance } from "./component";
+export { getCurrentInstance, setupComponent } from "./component";
+export * from "@vue/reactivity";

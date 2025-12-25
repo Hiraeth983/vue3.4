@@ -10,7 +10,11 @@
  * 为什么用数组：同一个组件内可能调用多次 onMounted()，比如不同的 composable 都注册了 mounted 钩子
  */
 
-import { currentInstance } from "./component";
+import {
+  currentInstance,
+  setCurrentInstance,
+  unsetCurrentInstance,
+} from "./component";
 import { LifecycleHooks } from "./enums";
 
 /**
@@ -26,7 +30,13 @@ function createHook(lifecycle) {
       // 包装 hook，执行时自动设置 currentInstance
       // 这样钩子内部调用 getCurrentInstance() 也能拿到正确的实例
       const wrappedHook = () => {
-        hook.call(target.proxy);
+        // 执行钩子时也设置 currentInstance
+        setCurrentInstance(target);
+        try {
+          hook.call(target.proxy);
+        } finally {
+          unsetCurrentInstance();
+        }
       };
 
       hooks.push(wrappedHook);
