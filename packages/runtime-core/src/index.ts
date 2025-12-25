@@ -12,6 +12,8 @@ export {
   onBeforeUnmount,
   onUnmounted,
 } from "./apiLifecycle";
+export { provide, inject } from "./apiInject";
 
 export { getCurrentInstance, setupComponent } from "./component";
+
 export * from "@vue/reactivity";

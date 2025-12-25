@@ -1,6 +1,6 @@
 import { isFunction, isObject } from "@vue/shared";
-import { proxyRefs } from "@vue/reactivity";
 import { createEmit } from "./componentEmits";
+import { proxyRefs } from "@vue/reactivity";
 
 // 当前组件实例（生命周期钩子需要）
 export let currentInstance = null;
@@ -19,6 +19,7 @@ export function createComponentInstance(vnode, parent) {
   const instance = {
     type: vnode.type, // 组件定义对象（包含 props 选项、render 等）
     vnode, // 组件的 vnode
+    provides: parent ? parent.provides : Object.create(null), // provides 继承父组件（原型链）
     parent,
     props: null, // 响应式 props
     attrs: null, // 透传属性

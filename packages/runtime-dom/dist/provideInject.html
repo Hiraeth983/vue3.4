@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Provide/Inject 测试</title>
+    <style>
+      .box { padding: 10px; margin: 10px; border: 1px solid #ccc; border-radius: 4px; }
+      .app { background: #e3f2fd; }
+      .parent { background: #fff3e0; }
+      .child { background: #e8f5e9; }
+      button { margin: 5px; padding: 5px 10px; cursor: pointer; }
+      h2, h3, h4 { margin: 5px 0; }
+      p { margin: 3px 0; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <script type="module">
+      import {
+        render,
+        h,
+        provide,
+        inject,
+        ref,
+        reactive,
+      } from "./runtime-dom.esm.js";
+
+      // ========== 孙组件：inject 数据 ==========
+      const GrandChild = {
+        setup() {
+          // 注入祖先提供的数据
+          const theme = inject("theme");
+          const count = inject("count");
+          const user = inject("user");
+          const notExist = inject("notExist", "默认值");
+
+          console.log("GrandChild inject:", { theme, count: count.value, user, notExist });
+
+          return () =>
+            h("div", { class: "box child" }, [
+              h("h4", "👶 GrandChild (inject)"),
+              h("p", `theme: ${theme}`),
+              h("p", `count: ${count.value}`),
+              h("p", `user: ${user.name} - ${user.age}岁`),
+              h("p", `notExist: ${notExist}`),
+            ]);
+        },
+      };
+
+      // ========== 子组件：provide 覆盖 + inject 父级数据 ==========
+      const Child = {
+        setup() {
+          // 注入 App 提供的 theme
+          const theme = inject("theme");
+
+          // 自己 provide 一个 count（会覆盖更上层的同名 provide）
+          const count = ref(100);
+          provide("count", count);
+
+          return () =>
+            h("div", { class: "box parent" }, [
+              h("h3", "👦 Child (provide count=100 覆盖父级)"),
+              h("p", `继承的 theme: ${theme}`),
+              h("button", { onClick: () => count.value++ }, `Child count++: ${count.value}`),
+              h(GrandChild),
+            ]);
+        },
+      };
+
+      // ========== 父组件 ==========
+      const Parent = {
+        setup() {
+          const count = inject("count");
+          const theme = inject("theme");
+
+          return () =>
+            h("div", { class: "box parent" }, [
+              h("h3", "👨 Parent (inject App 的数据)"),
+              h("p", `theme: ${theme}, count: ${count.value}`),
+              h(Child),
+            ]);
+        },
+      };
+
+      // ========== 根组件：provide 数据 ==========
+      const App = {
+        setup() {
+          // provide 基本值
+          provide("theme", "dark");
+
+          // provide 响应式数据
+          const count = ref(0);
+          provide("count", count);
+
+          // provide 响应式对象
+          const user = reactive({ name: "Leo", age: 25 });
+          provide("user", user);
+
+          return () =>
+            h("div", { class: "box app" }, [
+              h("h2", "🏠 App (provide: theme, count, user)"),
+              h("button", { onClick: () => count.value++ }, `App count++: ${count.value}`),
+              h("button", { onClick: () => user.age++ }, `User age++: ${user.age}`),
+              h("hr"),
+              h(Parent),
+            ]);
+        },
+      };
+
+      render(h(App), document.getElementById("app"));
+    </script>
+  </body>
+</html>
