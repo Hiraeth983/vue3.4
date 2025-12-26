@@ -63,7 +63,7 @@ export function isSameVnode(n1, n2) {
 
 export function normalizeVnode(child) {
   // null/undefined/boolean → 注释节点（不渲染任何内容）
-  if (child === null || child === undefined || typeof child === "boolean") {
+  if (child == null || typeof child === "boolean") {
     return createVnode(Comment, null, "");
   }
   // 字符串/数字 → 文本节点

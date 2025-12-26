@@ -31,7 +31,7 @@ export function createRenderer(renderOptions) {
   ) => {
     for (let i = 0; i < children.length; i++) {
       // 此处children[i]可能是纯文本元素
-      const child = normalizeVnode(children[i]);
+      const child = (children[i] = normalizeVnode(children[i]));
       patch(null, child, container, anchor, parentComponent);
     }
   };
@@ -184,7 +184,7 @@ export function createRenderer(renderOptions) {
     // 1.从头对比
     while (i <= e1 && i <= e2) {
       const n1 = c1[i];
-      const n2 = c2[i];
+      const n2 = (c2[i] = normalizeVnode(c2[i]));
       if (isSameVnode(n1, n2)) {
         patch(n1, n2, container, null, parentComponent); // 递归 patch
       } else {
@@ -196,7 +196,7 @@ export function createRenderer(renderOptions) {
     // 2.从尾对比
     while (i <= e1 && i <= e2) {
       const n1 = c1[e1];
-      const n2 = c2[e2];
+      const n2 = (c2[e2] = normalizeVnode(c2[e2]));
       if (isSameVnode(n1, n2)) {
         patch(n1, n2, container, null, parentComponent); // 递归 patch
       } else {
@@ -213,7 +213,13 @@ export function createRenderer(renderOptions) {
     if (i > e1 && i <= e2) {
       const anchor = c2[e2 + 1]?.el || null;
       while (i <= e2) {
-        patch(null, c2[i], container, anchor, parentComponent);
+        patch(
+          null,
+          (c2[i] = normalizeVnode(c2[i])),
+          container,
+          anchor,
+          parentComponent
+        );
         i++;
       }
     }
@@ -237,7 +243,10 @@ export function createRenderer(renderOptions) {
       // 5.1 建立 key -> index 映射
       const keyToNewIndexMap = new Map();
       for (let i = s2; i <= e2; i++) {
-        keyToNewIndexMap.set(c2[i].key, i);
+        const nextChild = (c2[i] = normalizeVnode(c2[i]));
+        if (nextChild.key != null) {
+          keyToNewIndexMap.set(nextChild.key, i);
+        }
       }
 
       // 5.2 遍历旧节点，patch 可复用的，删除多余的
@@ -458,6 +467,8 @@ export function createRenderer(renderOptions) {
 
   // 卸载
   const unmount = (vnode) => {
+    if (!vnode || !vnode.el) return;
+
     const { type, children, shapeFlag } = vnode;
 
     if (shapeFlag & ShapeFlags.COMPONENT) {
