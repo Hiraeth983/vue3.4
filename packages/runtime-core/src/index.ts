@@ -1,4 +1,6 @@
 // 跨平台，不关心 API 内部如何实现
+export * from "@vue/reactivity";
+
 export * from "./h";
 export * from "./vnode";
 export * from "./renderer";
@@ -15,5 +17,6 @@ export {
 export { provide, inject } from "./apiInject";
 
 export { getCurrentInstance, setupComponent } from "./component";
+export { initSlots } from "./componentSlots";
 
-export * from "@vue/reactivity";
+export { renderSlot } from "./helpers/renderSlot";

@@ -1,5 +1,5 @@
 import { invokeArrayFns, ShapeFlags } from "@vue/shared";
-import { isSameVnode, Text, Fragment, normalizeVnode } from "./vnode";
+import { isSameVnode, Text, Fragment, Comment, normalizeVnode } from "./vnode";
 import { reactive, ReactiveEffect } from "@vue/reactivity";
 import { queueJob, queuePostFlushCb } from "./scheduler";
 import { getSequence } from "./utils/sequence";
@@ -7,6 +7,7 @@ import { createComponentProxy } from "./componentPublicInstance";
 import { initProps, updateProps } from "./componentProps";
 import { createComponentInstance, setupComponent } from "./component";
 import { shouldUpdateComponent } from "./componentRenderUtils";
+import { initSlots, updateSlots } from "./componentSlots";
 
 export function createRenderer(renderOptions) {
   const {
@@ -76,6 +77,8 @@ export function createRenderer(renderOptions) {
 
     // 初始化props
     initProps(instance, vnode.props);
+    // 初始化插槽
+    initSlots(instance, vnode.children);
 
     // 创建代理
     instance.proxy = createComponentProxy(instance);
@@ -157,6 +160,7 @@ export function createRenderer(renderOptions) {
     instance.next = null;
 
     updateProps(instance, nextVNode.props);
+    updateSlots(instance, nextVNode.children);
   };
 
   const patchProps = (el, oldProps, newProps) => {
@@ -346,6 +350,17 @@ export function createRenderer(renderOptions) {
     }
   };
 
+  const processComment = (n1, n2, container) => {
+    if (n1 === null) {
+      // 挂载：创建注释节点
+      const el = (n2.el = hostCreateComment(n2.children || ""));
+      hostInsert(el, container);
+    } else {
+      // 注释节点不需要更新内容，只复用 DOM
+      n2.el = n1.el;
+    }
+  };
+
   const processText = (n1, n2, container) => {
     if (n1 === null) {
       // 挂载：创建文本节点
@@ -422,6 +437,9 @@ export function createRenderer(renderOptions) {
     switch (type) {
       case Text:
         processText(n1, n2, container);
+        break;
+      case Comment:
+        processComment(n1, n2, container);
         break;
       case Fragment:
         // h(Fragment, null, [h('p', 'A'), h('p', 'B')]) -> <p>A</p><p>B</p> ← 没有外层包裹

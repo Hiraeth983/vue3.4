@@ -32,7 +32,7 @@ export function createComponentInstance(vnode, parent) {
     isUnmounted: false, // 组件是否已卸载
     update: null,
     next: null, // 待更新的 vnode（patchComponent 用）
-    slots: null, // TODO 后续实现
+    slots: {}, // 插槽
     emit: null, // emit 函数
     emitted: null, // 已经触发过的 emitted 函数名称
     // 生命周期钩子

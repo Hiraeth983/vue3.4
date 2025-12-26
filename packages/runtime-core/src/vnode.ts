@@ -1,7 +1,15 @@
-import { isArray, isNumber, isObject, isString, ShapeFlags } from "@vue/shared";
+import {
+  isArray,
+  isFunction,
+  isNumber,
+  isObject,
+  isString,
+  ShapeFlags,
+} from "@vue/shared";
 
 export const Text = Symbol.for("v-txt");
 export const Fragment = Symbol.for("v-fgt");
+export const Comment = Symbol.for("v-cmt");
 
 export function createVnode(type, props, children?) {
   const shapeFlag = isString(type)
@@ -20,13 +28,26 @@ export function createVnode(type, props, children?) {
     shapeFlag,
   };
 
-  if (children) {
+  if (children !== null) {
+    let type = 0;
+
     if (isArray(children)) {
-      vnode.shapeFlag |= ShapeFlags.ARRAY_CHILDREN;
+      type = ShapeFlags.ARRAY_CHILDREN;
+    } else if (isObject(children)) {
+      // 对象形式 → slots
+      type = ShapeFlags.SLOTS_CHILDREN;
+    } else if (isFunction(children)) {
+      // 函数形式 → 包装成对象形式 slots
+      children = { default: children };
+      type = ShapeFlags.SLOTS_CHILDREN;
     } else {
-      vnode.children = String(children);
-      vnode.shapeFlag |= ShapeFlags.TEXT_CHILDREN;
+      children = String(children);
+      type = ShapeFlags.TEXT_CHILDREN;
     }
+
+    // 统一赋值
+    vnode.children = children;
+    vnode.shapeFlag |= type;
   }
 
   return vnode;
@@ -41,9 +62,18 @@ export function isSameVnode(n1, n2) {
 }
 
 export function normalizeVnode(child) {
-  // 简化版本，后续完善
+  // null/undefined/boolean → 注释节点（不渲染任何内容）
+  if (child === null || child === undefined || typeof child === "boolean") {
+    return createVnode(Comment, null, "");
+  }
+  // 字符串/数字 → 文本节点
   if (isString(child) || isNumber(child)) {
     return createVnode(Text, null, String(child));
   }
+  // 数组 → Fragment 包裹
+  if (isArray(child)) {
+    return createVnode(Fragment, null, child);
+  }
+  // 已经是 vnode，直接返回
   return child;
 }

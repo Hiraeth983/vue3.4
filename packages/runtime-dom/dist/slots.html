@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Slots 测试</title>
+    <style>
+      .card {
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        margin: 10px;
+        overflow: hidden;
+      }
+      .card header {
+        background: #e3f2fd;
+        padding: 10px;
+        font-weight: bold;
+      }
+      .card main {
+        padding: 15px;
+        background: #fff;
+      }
+      .card footer {
+        background: #f5f5f5;
+        padding: 10px;
+        font-size: 12px;
+        color: #666;
+      }
+      button {
+        margin: 5px;
+        padding: 8px 16px;
+        cursor: pointer;
+      }
+      .container {
+        padding: 20px;
+      }
+      .list-item {
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        border-bottom: 1px solid #eee;
+      }
+      .list-item:last-child {
+        border-bottom: none;
+      }
+      .list-item .index {
+        width: 30px;
+        color: #999;
+      }
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 12px;
+        margin-left: 8px;
+      }
+      .badge.active {
+        background: #e8f5e9;
+        color: #2e7d32;
+      }
+      .badge.inactive {
+        background: #ffebee;
+        color: #c62828;
+      }
+      .tabs {
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin: 10px 0;
+      }
+      .tab-header {
+        display: flex;
+        background: #f5f5f5;
+        border-bottom: 1px solid #ddd;
+      }
+      .tab-btn {
+        padding: 10px 20px;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+      }
+      .tab-btn.active {
+        background: #fff;
+        border-bottom: 2px solid #1976d2;
+        color: #1976d2;
+      }
+      .tab-content {
+        padding: 15px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <script type="module">
+      import { render, h, ref } from "./runtime-dom.esm.js";
+
+      // ========== 卡片组件：使用具名插槽 ==========
+      const Card = {
+        setup(props, { slots }) {
+          return () =>
+            h("div", { class: "card" }, [
+              h("header", slots.header?.() || "默认标题"),
+              h("main", slots.default?.() || "默认内容"),
+              h("footer", slots.footer?.() || "默认底部"),
+            ]);
+        },
+      };
+
+      // ========== 简单组件：测试函数形式的默认插槽 ==========
+      const SimpleBox = {
+        setup(props, { slots }) {
+          return () =>
+            h(
+              "div",
+              {
+                style:
+                  "border: 2px dashed #42b883; padding: 10px; margin: 10px;",
+              },
+              [h("span", "SimpleBox: "), slots.default?.()]
+            );
+        },
+      };
+
+      // ========== 作用域插槽组件：子组件向插槽传递数据 ==========
+      const ScopedList = {
+        props: { items: Array },
+        setup(props, { slots }) {
+          return () =>
+            h(
+              "div",
+              { style: "border: 1px solid #ddd; border-radius: 4px;" },
+              props.items.map((item, index) =>
+                h("div", { class: "list-item", key: item.id }, [
+                  h("span", { class: "index" }, `${index + 1}.`),
+                  // 作用域插槽：把 item 和 index 传给父组件
+                  slots.default?.({ item, index }) ||
+                    h("span", item.name || item),
+                ])
+              )
+            );
+        },
+      };
+
+      // ========== Tab 组件：复杂插槽场景 ==========
+      const Tabs = {
+        props: { tabs: Array },
+        setup(props, { slots }) {
+          const activeTab = ref(0);
+
+          return () =>
+            h("div", { class: "tabs" }, [
+              // Tab 头部
+              h(
+                "div",
+                { class: "tab-header" },
+                props.tabs.map((tab, index) =>
+                  h(
+                    "button",
+                    {
+                      class: ["tab-btn", activeTab.value === index && "active"],
+                      key: index,
+                      onClick: () => (activeTab.value = index),
+                    },
+                    // 允许自定义 tab 标题
+                    slots.tab?.({
+                      tab,
+                      index,
+                      isActive: activeTab.value === index,
+                    }) || tab.label
+                  )
+                )
+              ),
+              // Tab 内容
+              h(
+                "div",
+                { class: "tab-content" },
+                slots.default?.({
+                  activeTab: activeTab.value,
+                  activeData: props.tabs[activeTab.value],
+                }) || "请提供内容插槽"
+              ),
+            ]);
+        },
+      };
+
+      // ========== 嵌套插槽测试组件 ==========
+      const Wrapper = {
+        setup(props, { slots }) {
+          return () =>
+            h(
+              "div",
+              {
+                style:
+                  "border: 3px solid #9c27b0; padding: 10px; margin: 10px; border-radius: 8px;",
+              },
+              [
+                h(
+                  "div",
+                  {
+                    style:
+                      "color: #9c27b0; font-weight: bold; margin-bottom: 8px;",
+                  },
+                  "Wrapper 组件"
+                ),
+                slots.default?.(),
+              ]
+            );
+        },
+      };
+
+      // ========== 根组件 ==========
+      const App = {
+        setup() {
+          const count = ref(0);
+          const showFooter = ref(true);
+
+          // 作用域插槽测试数据
+          const users = ref([
+            { id: 1, name: "张三", status: "active" },
+            { id: 2, name: "李四", status: "inactive" },
+            { id: 3, name: "王五", status: "active" },
+          ]);
+
+          // Tab 测试数据
+          const tabsData = [
+            { label: "首页", content: "这是首页的内容" },
+            { label: "产品", content: "这是产品页的内容" },
+            { label: "关于", content: "这是关于页的内容" },
+          ];
+
+          return () =>
+            h("div", { class: "container" }, [
+              h("h2", "Slots 功能测试"),
+
+              // 测试1：具名插槽
+              h("h3", "1. 具名插槽"),
+              h(Card, null, {
+                header: () => h("span", "自定义头部"),
+                default: () => [
+                  h("p", "这是卡片的主要内容"),
+                  h("p", `当前计数: ${count.value}`),
+                ],
+                footer: () =>
+                  showFooter.value
+                    ? h("span", "自定义底部 - 点击按钮切换")
+                    : null,
+              }),
+
+              // 测试2：部分插槽（测试默认值）
+              h("h3", "2. 部分插槽 + 默认值"),
+              h(Card, null, {
+                header: () => h("span", "只传了 header"),
+                // default 和 footer 使用默认值
+              }),
+
+              // 测试3：函数形式的默认插槽
+              h("h3", "3. 函数形式默认插槽"),
+              h(SimpleBox, null, () => h("strong", "这是通过函数传入的内容")),
+
+              // 测试4：动态更新插槽内容
+              h("h3", "4. 动态更新测试"),
+              h("div", [
+                h("button", { onClick: () => count.value++ }, "Count++"),
+                h(
+                  "button",
+                  { onClick: () => (showFooter.value = !showFooter.value) },
+                  `Toggle Footer (${showFooter.value ? "显示" : "隐藏"})`
+                ),
+              ]),
+
+              // 测试5：不传任何插槽
+              h("h3", "5. 无插槽（全部使用默认值）"),
+              h(Card),
+
+              // 测试6：作用域插槽（核心功能）
+              h("h3", "6. 作用域插槽"),
+              h(
+                "p",
+                { style: "color: #666; font-size: 14px;" },
+                "子组件传递 item 数据给父组件的插槽函数"
+              ),
+              h(
+                ScopedList,
+                { items: users.value },
+                {
+                  // 父组件接收子组件传来的 { item, index }
+                  default: ({ item, index }) =>
+                    h("span", { style: "flex: 1;" }, [
+                      h("span", item.name),
+                      h(
+                        "span",
+                        {
+                          class: ["badge", item.status],
+                        },
+                        item.status === "active" ? "在线" : "离线"
+                      ),
+                    ]),
+                }
+              ),
+
+              // 测试7：复杂组件 - Tab 切换
+              h("h3", "7. Tab 组件（多插槽 + 作用域）"),
+              h(
+                Tabs,
+                { tabs: tabsData },
+                {
+                  // 自定义 tab 标题（作用域插槽）
+                  tab: ({ tab, isActive }) =>
+                    h("span", [tab.label, isActive ? h("span", " ✓") : null]),
+                  // 自定义内容区域（作用域插槽）
+                  default: ({ activeTab, activeData }) =>
+                    h("div", [
+                      h("p", { style: "margin: 0;" }, activeData.content),
+                      h(
+                        "p",
+                        {
+                          style:
+                            "color: #999; font-size: 12px; margin-top: 8px;",
+                        },
+                        `当前是第 ${activeTab + 1} 个 Tab`
+                      ),
+                    ]),
+                }
+              ),
+
+              // 测试8：嵌套插槽
+              h("h3", "8. 嵌套插槽"),
+              h(Wrapper, null, {
+                default: () =>
+                  h(Card, null, {
+                    header: () => h("span", "嵌套在 Wrapper 里的 Card"),
+                    default: () =>
+                      h(SimpleBox, null, () =>
+                        h("span", "三层嵌套：Wrapper > Card > SimpleBox")
+                      ),
+                  }),
+              }),
+
+              // 测试9：动态列表 + 作用域插槽
+              h("h3", "9. 动态列表操作"),
+              h("div", { style: "margin-bottom: 10px;" }, [
+                h(
+                  "button",
+                  {
+                    onClick: () => {
+                      const id = users.value.length + 1;
+                      users.value = [
+                        ...users.value,
+                        {
+                          id,
+                          name: `用户${id}`,
+                          status: id % 2 ? "active" : "inactive",
+                        },
+                      ];
+                    },
+                  },
+                  "添加用户"
+                ),
+                h(
+                  "button",
+                  {
+                    onClick: () => {
+                      if (users.value.length > 0) {
+                        users.value = users.value.slice(0, -1);
+                      }
+                    },
+                  },
+                  "删除最后一个"
+                ),
+                h(
+                  "button",
+                  {
+                    onClick: () => {
+                      users.value = users.value.map((u) => ({
+                        ...u,
+                        status: u.status === "active" ? "inactive" : "active",
+                      }));
+                    },
+                  },
+                  "切换所有状态"
+                ),
+              ]),
+              h(
+                ScopedList,
+                { items: users.value },
+                {
+                  default: ({ item }) =>
+                    h("span", { style: "flex: 1;" }, [
+                      h("span", item.name),
+                      h(
+                        "span",
+                        { class: ["badge", item.status] },
+                        item.status === "active" ? "在线" : "离线"
+                      ),
+                    ]),
+                }
+              ),
+            ]);
+        },
+      };
+
+      render(h(App), document.getElementById("app"));
+    </script>
+  </body>
+</html>
