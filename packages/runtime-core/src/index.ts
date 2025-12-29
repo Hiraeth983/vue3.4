@@ -20,3 +20,5 @@ export { getCurrentInstance, setupComponent } from "./component";
 export { initSlots } from "./componentSlots";
 
 export { renderSlot } from "./helpers/renderSlot";
+
+export { Teleport } from "./components/Teleport";

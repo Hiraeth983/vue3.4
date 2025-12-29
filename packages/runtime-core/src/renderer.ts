@@ -8,6 +8,7 @@ import { initProps, updateProps } from "./componentProps";
 import { createComponentInstance, setupComponent } from "./component";
 import { shouldUpdateComponent } from "./componentRenderUtils";
 import { initSlots, updateSlots } from "./componentSlots";
+import { TeleportImpl } from "./components/Teleport";
 
 export function createRenderer(renderOptions) {
   const {
@@ -20,6 +21,7 @@ export function createRenderer(renderOptions) {
     setElementText: hostSetElementText,
     parentNode: hostParentNode,
     nextSibling: hostNextSibling,
+    querySelector,
     patchProp: hostPatchProp,
   } = renderOptions;
 
@@ -176,7 +178,13 @@ export function createRenderer(renderOptions) {
     }
   };
 
-  const patchKeyedChildren = (c1, c2, container, parentComponent = null) => {
+  const patchKeyedChildren = (
+    c1,
+    c2,
+    container,
+    anchor = null,
+    parentComponent = null
+  ) => {
     let i = 0;
     let e1 = c1.length - 1;
     let e2 = c2.length - 1;
@@ -211,13 +219,14 @@ export function createRenderer(renderOptions) {
     // (a b) c d
     // i = 2, e1 = 1, e2 = 3
     if (i > e1 && i <= e2) {
-      const anchor = c2[e2 + 1]?.el || null;
+      const nextPos = e2 + 1;
+      const insertAnchor = nextPos < c2.length ? c2[nextPos].el : anchor;
       while (i <= e2) {
         patch(
           null,
           (c2[i] = normalizeVnode(c2[i])),
           container,
-          anchor,
+          insertAnchor,
           parentComponent
         );
         i++;
@@ -276,14 +285,24 @@ export function createRenderer(renderOptions) {
         // 根据新数组，倒序插入
         const nextIndex = s2 + i;
         const nextChild = c2[nextIndex];
-        const anchor = c2[nextIndex + 1]?.el || null;
+        const insertAnchor =
+          nextIndex + 1 < c2.length ? c2[nextIndex + 1].el : anchor;
 
         if (newIndexToOldIndexMap[i] === 0) {
           // 新增节点
           patch(null, nextChild, container, anchor, parentComponent);
         } else if (j < 0 || i !== increasingNewIndexSequence[j]) {
           // 不在 LIS 中，需要移动
-          hostInsert(nextChild.el, container, anchor);
+          const child = c2[nextIndex];
+
+          if (child.shapeFlag & ShapeFlags.TELEPORT) {
+            // Teleport 用专门的 move 方法
+            TeleportImpl.move(child, container, insertAnchor, {
+              hostInsert,
+            });
+          } else {
+            hostInsert(child.el, container, insertAnchor);
+          }
         } else {
           // 在 LIS 中，无需移动
           j--;
@@ -292,7 +311,13 @@ export function createRenderer(renderOptions) {
     }
   };
 
-  const patchChildren = (n1, n2, container, parentComponent = null) => {
+  const patchChildren = (
+    n1,
+    n2,
+    container,
+    anchor = null,
+    parentComponent = null
+  ) => {
     // children 有三种类型：TEXT、ARRAY、NULL，组合起来 3×3 = 9 种情况
     const c1 = n1.children;
     const c2 = n2.children;
@@ -314,7 +339,7 @@ export function createRenderer(renderOptions) {
       if (prevShapeFlag & ShapeFlags.ARRAY_CHILDREN) {
         if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
           // 数组 -> 数组：diff算法
-          patchKeyedChildren(c1, c2, container, parentComponent);
+          patchKeyedChildren(c1, c2, container, anchor, parentComponent);
         } else {
           // 数组 -> 空：卸载
           unmountChildren(c1);
@@ -326,7 +351,7 @@ export function createRenderer(renderOptions) {
           hostSetElementText(container, "");
         }
         if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
-          mountChildren(c2, container, null, parentComponent);
+          mountChildren(c2, container, anchor, parentComponent);
         }
       }
     }
@@ -343,7 +368,7 @@ export function createRenderer(renderOptions) {
     patchProps(el, oldProps, newProps);
 
     // 更新 children
-    patchChildren(n1, n2, el, parentComponent);
+    patchChildren(n1, n2, el, null, parentComponent);
   };
 
   const patchComponent = (n1, n2) => {
@@ -360,7 +385,7 @@ export function createRenderer(renderOptions) {
   };
 
   const processComment = (n1, n2, container) => {
-    if (n1 === null) {
+    if (n1 == null) {
       // 挂载：创建注释节点
       const el = (n2.el = hostCreateComment(n2.children || ""));
       hostInsert(el, container);
@@ -371,7 +396,7 @@ export function createRenderer(renderOptions) {
   };
 
   const processText = (n1, n2, container) => {
-    if (n1 === null) {
+    if (n1 == null) {
       // 挂载：创建文本节点
       const el = (n2.el = hostCreateText(n2.children));
       hostInsert(el, container);
@@ -383,13 +408,31 @@ export function createRenderer(renderOptions) {
     }
   };
 
-  const processFragment = (n1, n2, container, parentComponent = null) => {
-    if (n1 === null) {
-      // 挂载：直接挂载 children
-      mountChildren(n2.children, container, null, parentComponent);
+  const processFragment = (
+    n1,
+    n2,
+    container,
+    anchor = null,
+    parentComponent = null
+  ) => {
+    if (n1 == null) {
+      // 创建结束锚点
+      const fragmentEndAnchor = hostCreateComment("fragment end");
+
+      // 挂载：直接挂载 children（在锚点之前）
+      hostInsert(fragmentEndAnchor, container, anchor);
+      mountChildren(n2.children, container, fragmentEndAnchor, parentComponent);
+
+      // 设置 el 和 anchor
+      n2.el = n2.children.length > 0 ? n2.children[0].el : fragmentEndAnchor;
+      n2.anchor = fragmentEndAnchor;
     } else {
+      // 继承锚点
+      n2.el = n1.el;
+      n2.anchor = n1.anchor;
+
       // 更新：diff children
-      patchChildren(n1, n2, container, parentComponent);
+      patchChildren(n1, n2, container, n2.anchor, parentComponent);
     }
   };
 
@@ -400,7 +443,7 @@ export function createRenderer(renderOptions) {
     anchor = null,
     parentComponent = null
   ) => {
-    if (n1 === null) {
+    if (n1 == null) {
       // 初始挂载操作
       mountElement(n2, container, anchor, parentComponent);
     } else {
@@ -416,7 +459,7 @@ export function createRenderer(renderOptions) {
     anchor = null,
     parentComponent = null
   ) => {
-    if (n1 === null) {
+    if (n1 == null) {
       mountComponent(n2, container, anchor, parentComponent);
     } else {
       patchComponent(n1, n2);
@@ -452,7 +495,7 @@ export function createRenderer(renderOptions) {
         break;
       case Fragment:
         // h(Fragment, null, [h('p', 'A'), h('p', 'B')]) -> <p>A</p><p>B</p> ← 没有外层包裹
-        processFragment(n1, n2, container, parentComponent);
+        processFragment(n1, n2, container, anchor, parentComponent);
         break;
       default:
         if (shapeFlag & ShapeFlags.ELEMENT) {
@@ -461,6 +504,17 @@ export function createRenderer(renderOptions) {
         } else if (shapeFlag & ShapeFlags.COMPONENT) {
           // 处理组件 函数式组件（兼容Vue2）和状态组件
           processComponent(n1, n2, container, anchor, parentComponent);
+        } else if (shapeFlag & ShapeFlags.TELEPORT) {
+          // 处理 Teleport
+          TeleportImpl.process(n1, n2, container, anchor, parentComponent, {
+            mountChildren,
+            patchChildren,
+            unmountChildren,
+            move: hostInsert,
+            hostInsert,
+            hostCreateComment,
+            querySelector,
+          });
         }
     }
   };
@@ -471,6 +525,13 @@ export function createRenderer(renderOptions) {
 
     const { type, children, shapeFlag } = vnode;
 
+    // 处理 Teleport
+    if (shapeFlag & ShapeFlags.TELEPORT) {
+      TeleportImpl.remove(vnode, { unmountChildren, hostRemove });
+      return;
+    }
+
+    // 处理组件
     if (shapeFlag & ShapeFlags.COMPONENT) {
       unmountComponent(vnode.component);
       return;
@@ -479,6 +540,9 @@ export function createRenderer(renderOptions) {
     // Fragment 需要卸载所有 children
     if (type === Fragment) {
       unmountChildren(children);
+      if (vnode.anchor) {
+        hostRemove(vnode.anchor);
+      }
       return;
     }
 
@@ -511,7 +575,7 @@ export function createRenderer(renderOptions) {
   };
 
   const render = (vnode, container) => {
-    if (vnode === null) {
+    if (vnode == null) {
       if (container._vnode) {
         unmount(container._vnode);
       }

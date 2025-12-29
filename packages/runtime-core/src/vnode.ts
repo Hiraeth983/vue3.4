@@ -6,6 +6,7 @@ import {
   isString,
   ShapeFlags,
 } from "@vue/shared";
+import { isTeleport } from "./components/Teleport";
 
 export const Text = Symbol.for("v-txt");
 export const Fragment = Symbol.for("v-fgt");
@@ -14,6 +15,8 @@ export const Comment = Symbol.for("v-cmt");
 export function createVnode(type, props, children?) {
   const shapeFlag = isString(type)
     ? ShapeFlags.ELEMENT // 元素
+    : isTeleport(type)
+    ? ShapeFlags.TELEPORT // Teleport（必须在 isObject 之前）
     : isObject(type)
     ? ShapeFlags.STATEFUL_COMPONENT // 组件
     : 0;
@@ -25,7 +28,10 @@ export function createVnode(type, props, children?) {
     key: props?.key,
     el: null, // 虚拟节点对应的真实节点
     component: null,
+    target: null, // Teleport的目标容器 真实节点
+    targetAnchor: null, // Teleport的目标容器的挂载锚点 真实节点
     shapeFlag,
+    anchor: null, // Fragment 的结束锚点
   };
 
   if (children !== null) {

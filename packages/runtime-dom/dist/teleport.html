@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Teleport 测试</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        padding: 20px;
+        background: #f5f5f5;
+      }
+      .app-container {
+        max-width: 900px;
+        margin: 0 auto;
+        background: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+      h2 {
+        margin-bottom: 20px;
+        color: #333;
+      }
+      h3 {
+        margin: 20px 0 10px;
+        color: #666;
+        font-size: 16px;
+      }
+      button {
+        padding: 8px 16px;
+        margin: 5px;
+        border: none;
+        border-radius: 4px;
+        background: #1976d2;
+        color: #fff;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      button:hover {
+        background: #1565c0;
+      }
+      button.danger {
+        background: #d32f2f;
+      }
+      button.danger:hover {
+        background: #c62828;
+      }
+      button.success {
+        background: #388e3c;
+      }
+      button.success:hover {
+        background: #2e7d32;
+      }
+      .info {
+        padding: 10px;
+        background: #e3f2fd;
+        border-radius: 4px;
+        margin: 10px 0;
+        font-size: 14px;
+        color: #1565c0;
+      }
+      .check-result {
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+        font-size: 14px;
+        font-family: monospace;
+        white-space: pre-wrap;
+      }
+      .check-result.pass {
+        background: #e8f5e9;
+        color: #2e7d32;
+      }
+      .check-result.fail {
+        background: #ffebee;
+        color: #c62828;
+      }
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+      .modal {
+        background: #fff;
+        padding: 24px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        min-width: 300px;
+        max-width: 500px;
+      }
+      .modal h3 {
+        margin: 0 0 16px;
+        color: #333;
+      }
+      .modal p {
+        margin: 0 0 16px;
+        color: #666;
+      }
+      .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+      }
+      .nested-box {
+        border: 2px dashed #42b883;
+        padding: 15px;
+        margin: 10px 0;
+        border-radius: 8px;
+        overflow: hidden;
+        position: relative;
+      }
+      .nested-box::before {
+        content: "overflow: hidden";
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        font-size: 12px;
+        color: #42b883;
+      }
+      #teleport-target {
+        border: 2px solid #9c27b0;
+        padding: 15px;
+        margin: 10px 0;
+        border-radius: 8px;
+        min-height: 50px;
+      }
+      #teleport-target::before {
+        content: "#teleport-target";
+        display: block;
+        font-size: 12px;
+        color: #9c27b0;
+        margin-bottom: 10px;
+      }
+      #teleport-target-2 {
+        border: 2px solid #ff9800;
+        padding: 15px;
+        margin: 10px 0;
+        border-radius: 8px;
+        min-height: 50px;
+      }
+      #teleport-target-2::before {
+        content: "#teleport-target-2";
+        display: block;
+        font-size: 12px;
+        color: #ff9800;
+        margin-bottom: 10px;
+      }
+      .teleport-item {
+        padding: 8px 12px;
+        margin: 5px 0;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+      .teleport-item.a {
+        background: #e3f2fd;
+        border-left: 4px solid #1976d2;
+      }
+      .teleport-item.b {
+        background: #f3e5f5;
+        border-left: 4px solid #9c27b0;
+      }
+      .teleport-item.c {
+        background: #fff3e0;
+        border-left: 4px solid #ff9800;
+      }
+      .fragment-child {
+        display: inline-block;
+        padding: 5px 10px;
+        margin: 3px;
+        background: #e8f5e9;
+        border-radius: 4px;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <!-- Teleport 目标容器 -->
+    <div id="teleport-target"></div>
+    <div id="teleport-target-2"></div>
+
+    <script type="module">
+      import { render, h, ref, Fragment, Teleport } from "./runtime-dom.esm.js";
+
+      // ========== 工具函数：检查 vnode 结构 ==========
+      function checkVnodeStructure(vnode, description) {
+        const results = [];
+
+        // 检查 el
+        if (vnode.el) {
+          results.push(`✓ vnode.el 存在: ${vnode.el.nodeName || vnode.el.nodeType}`);
+        } else {
+          results.push(`✗ vnode.el 不存在`);
+        }
+
+        // 检查 anchor (Fragment)
+        if (vnode.anchor !== undefined) {
+          if (vnode.anchor) {
+            results.push(`✓ vnode.anchor 存在: ${vnode.anchor.nodeName || vnode.anchor.nodeType}`);
+          } else {
+            results.push(`○ vnode.anchor 为 null`);
+          }
+        }
+
+        // 检查 targetAnchor (Teleport)
+        if (vnode.targetAnchor !== undefined) {
+          if (vnode.targetAnchor) {
+            results.push(`✓ vnode.targetAnchor 存在`);
+          } else {
+            results.push(`○ vnode.targetAnchor 为 null`);
+          }
+        }
+
+        // 检查 target (Teleport)
+        if (vnode.target !== undefined) {
+          if (vnode.target) {
+            results.push(`✓ vnode.target 存在: ${vnode.target.id || vnode.target.tagName}`);
+          } else {
+            results.push(`○ vnode.target 为 null`);
+          }
+        }
+
+        // 检查 component
+        if (vnode.component) {
+          results.push(`✓ vnode.component 存在`);
+          if (vnode.component.subTree) {
+            results.push(`  ✓ component.subTree 存在`);
+            if (vnode.component.subTree.el) {
+              results.push(`  ✓ subTree.el 存在: ${vnode.component.subTree.el.nodeName}`);
+            }
+          }
+        }
+
+        return { description, results, pass: !results.some(r => r.startsWith('✗')) };
+      }
+
+      // ========== Modal 组件 ==========
+      const Modal = {
+        props: { title: String },
+        setup(props, { slots, emit }) {
+          return () =>
+            h("div", { class: "modal-overlay", onClick: () => emit("close") }, [
+              h(
+                "div",
+                {
+                  class: "modal",
+                  onClick: (e) => e.stopPropagation(),
+                },
+                [
+                  h("h3", props.title || "Modal"),
+                  h("div", slots.default?.()),
+                  h("div", { class: "modal-actions" }, [
+                    h(
+                      "button",
+                      { class: "danger", onClick: () => emit("close") },
+                      "关闭"
+                    ),
+                  ]),
+                ]
+              ),
+            ]);
+        },
+      };
+
+      // ========== 多根组件（测试 Fragment el） ==========
+      const MultiRootComponent = {
+        setup() {
+          return () => [
+            h("span", { class: "fragment-child" }, "多根组件-子节点1"),
+            h("span", { class: "fragment-child" }, "多根组件-子节点2"),
+            h("span", { class: "fragment-child" }, "多根组件-子节点3"),
+          ];
+        },
+      };
+
+      // ========== 单根组件 ==========
+      const SingleRootComponent = {
+        setup() {
+          return () => h("div", {
+            style: "background: #e1f5fe; padding: 10px; border-radius: 4px;"
+          }, "我是单根组件");
+        },
+      };
+
+      // ========== 根组件 ==========
+      const App = {
+        setup() {
+          const showModal = ref(false);
+          const disabled = ref(false);
+          const targetId = ref("#teleport-target");
+          const counter = ref(0);
+          const showMultiTeleport = ref(true);
+          const checkResults = ref([]);
+
+          // 存储 vnode 引用用于检查
+          let teleportVnode = null;
+          let fragmentVnode = null;
+          let componentVnode = null;
+
+          // 运行检查
+          const runChecks = () => {
+            const results = [];
+
+            // 检查 Fragment
+            const fragmentContainer = document.querySelector('.fragment-test-container');
+            if (fragmentContainer) {
+              // Fragment 的 el 应该指向第一个子节点
+              const firstChild = fragmentContainer.firstElementChild;
+              const comments = [];
+              fragmentContainer.childNodes.forEach(node => {
+                if (node.nodeType === 8) comments.push(node);
+              });
+              results.push({
+                description: "Fragment 结构检查",
+                results: [
+                  firstChild ? `✓ Fragment 有子元素: ${firstChild.className}` : "✗ Fragment 无子元素",
+                  comments.length > 0 ? `✓ 找到 ${comments.length} 个注释节点（锚点）` : "○ 未找到注释节点",
+                ],
+                pass: !!firstChild
+              });
+            }
+
+            // 检查 Teleport target
+            const target = document.querySelector('#teleport-target');
+            if (target) {
+              const children = target.children;
+              const comments = [];
+              target.childNodes.forEach(node => {
+                if (node.nodeType === 8) comments.push(node.textContent);
+              });
+              results.push({
+                description: "Teleport 锚点检查 (#teleport-target)",
+                results: [
+                  `✓ 目标容器存在`,
+                  `✓ 子元素数量: ${children.length}`,
+                  comments.length > 0 ? `✓ 注释锚点: [${comments.join(', ')}]` : "○ 未找到注释锚点",
+                ],
+                pass: true
+              });
+            }
+
+            // 检查多 Teleport 顺序
+            if (showMultiTeleport.value) {
+              const items = target.querySelectorAll('.teleport-item');
+              const order = Array.from(items).map(el => el.textContent.trim());
+              const expectedOrder = ["Teleport A - 子节点1", "Teleport A - 子节点2", "Teleport B - 子节点1", "Teleport B - 子节点2"];
+              const orderCorrect = order.length >= 4 &&
+                order[0].includes("A") && order[1].includes("A") &&
+                order[2].includes("B") && order[3].includes("B");
+              results.push({
+                description: "多 Teleport 顺序检查",
+                results: [
+                  `当前顺序: ${order.join(' → ')}`,
+                  orderCorrect ? "✓ A 的子节点在 B 之前（锚点隔离正确）" : "✗ 顺序错误，锚点可能未正确工作",
+                ],
+                pass: orderCorrect
+              });
+            }
+
+            checkResults.value = results;
+          };
+
+          return () =>
+            h("div", { class: "app-container" }, [
+              h("h2", "Teleport & Fragment 完整测试"),
+
+              // ========== 测试 1：基础 Teleport ==========
+              h("h3", "1. 基础 Teleport（Modal）"),
+              h("p", { class: "info" },
+                "测试点：Teleport 基本挂载/卸载，组件 el 指向"
+              ),
+              h(
+                "button",
+                { onClick: () => (showModal.value = true) },
+                "打开 Modal"
+              ),
+
+              showModal.value
+                ? h(
+                    Teleport,
+                    { to: "body" },
+                    h(
+                      Modal,
+                      {
+                        title: "Teleport Modal",
+                        onClose: () => (showModal.value = false),
+                      },
+                      {
+                        default: () => [
+                          h("p", "Modal 被 Teleport 到 body"),
+                          h("p", `计数器: ${counter.value}`),
+                          h(
+                            "button",
+                            { onClick: () => counter.value++ },
+                            "Counter++"
+                          ),
+                        ],
+                      }
+                    )
+                  )
+                : null,
+
+              // ========== 测试 2：多个 Teleport 同一目标（锚点隔离）==========
+              h("h3", "2. 多 Teleport 同一目标（锚点隔离）"),
+              h("p", { class: "info" },
+                "测试点：多个 Teleport 指向同一 target，锚点确保各自子节点不混乱"
+              ),
+              h(
+                "button",
+                { onClick: () => (showMultiTeleport.value = !showMultiTeleport.value) },
+                showMultiTeleport.value ? "隐藏" : "显示"
+              ),
+              h(
+                "button",
+                { onClick: () => counter.value++ },
+                `更新 Counter: ${counter.value}`
+              ),
+
+              showMultiTeleport.value ? [
+                // Teleport A
+                h(
+                  Teleport,
+                  { to: "#teleport-target" },
+                  [
+                    h("div", { class: "teleport-item a" }, `Teleport A - 子节点1 (${counter.value})`),
+                    h("div", { class: "teleport-item a" }, `Teleport A - 子节点2`),
+                  ]
+                ),
+                // Teleport B
+                h(
+                  Teleport,
+                  { to: "#teleport-target" },
+                  [
+                    h("div", { class: "teleport-item b" }, `Teleport B - 子节点1`),
+                    h("div", { class: "teleport-item b" }, `Teleport B - 子节点2 (${counter.value})`),
+                  ]
+                ),
+              ] : null,
+
+              // ========== 测试 3：disabled 切换 ==========
+              h("h3", "3. disabled 属性切换"),
+              h("p", { class: "info" },
+                "测试点：disabled 切换时子节点正确移动，锚点定位"
+              ),
+              h(
+                "button",
+                { onClick: () => (disabled.value = !disabled.value) },
+                `disabled: ${disabled.value}`
+              ),
+              h("div", { class: "nested-box" }, [
+                h("p", "overflow: hidden 容器"),
+                h(
+                  Teleport,
+                  { to: "#teleport-target", disabled: disabled.value },
+                  h(
+                    "div",
+                    { class: "teleport-item c" },
+                    disabled.value
+                      ? "在原位置（disabled=true）"
+                      : "在 #teleport-target（disabled=false）"
+                  )
+                ),
+              ]),
+
+              // ========== 测试 4：动态切换 to ==========
+              h("h3", "4. 动态切换 to 目标"),
+              h("p", { class: "info" },
+                "测试点：to 变化时子节点和锚点都移到新目标"
+              ),
+              h(
+                "button",
+                {
+                  onClick: () =>
+                    (targetId.value =
+                      targetId.value === "#teleport-target"
+                        ? "#teleport-target-2"
+                        : "#teleport-target"),
+                },
+                `当前目标: ${targetId.value}`
+              ),
+              h(
+                Teleport,
+                { to: targetId.value },
+                h(
+                  "div",
+                  { class: "teleport-item c" },
+                  `我在 ${targetId.value}`
+                )
+              ),
+
+              // ========== 测试 5：Fragment el 和 anchor ==========
+              h("h3", "5. Fragment 的 el 和 anchor"),
+              h("p", { class: "info" },
+                "测试点：Fragment.el 指向第一个子节点，Fragment.anchor 是结束锚点"
+              ),
+              h("div", {
+                class: "fragment-test-container",
+                style: "border: 1px dashed #ccc; padding: 10px; border-radius: 4px;"
+              }, [
+                h(Fragment, null, [
+                  h("span", { class: "fragment-child" }, "Fragment子节点1"),
+                  h("span", { class: "fragment-child" }, "Fragment子节点2"),
+                  h("span", { class: "fragment-child" }, "Fragment子节点3"),
+                ]),
+              ]),
+
+              // ========== 测试 6：组件 el 指向 ==========
+              h("h3", "6. 组件的 el 指向"),
+              h("p", { class: "info" },
+                "测试点：单根组件 el 指向根元素，多根组件 el 指向 Fragment 的 el（第一个子节点）"
+              ),
+              h("div", { style: "margin: 10px 0;" }, [
+                h("p", "单根组件："),
+                h(SingleRootComponent),
+              ]),
+              h("div", { style: "margin: 10px 0;" }, [
+                h("p", "多根组件（返回 Fragment）："),
+                h(MultiRootComponent),
+              ]),
+
+              // ========== 测试 7：无效 target 警告 ==========
+              h("h3", "7. 无效 target 警告"),
+              h("p", { class: "info" },
+                "测试点：打开控制台查看警告信息（如果实现了的话）"
+              ),
+              h(
+                Teleport,
+                { to: "#not-exist-target" },
+                h("div", { class: "teleport-item c" }, "目标不存在，应该有警告")
+              ),
+
+              // ========== 运行检查 ==========
+              h("h3", "运行结构检查"),
+              h(
+                "button",
+                { class: "success", onClick: runChecks },
+                "检查 vnode 结构"
+              ),
+
+              ...checkResults.value.map(result =>
+                h("div", {
+                  class: `check-result ${result.pass ? 'pass' : 'fail'}`
+                }, [
+                  h("strong", result.description),
+                  "\n",
+                  result.results.join("\n"),
+                ])
+              ),
+            ]);
+        },
+      };
+
+      render(h(App), document.getElementById("app"));
+    </script>
+  </body>
+</html>

@@ -33,4 +33,6 @@ export const nodeOps = {
   parentNode: (node) => node.parentNode,
 
   nextSibling: (node) => node.nextSibling,
+
+  querySelector: (selector) => document.querySelector(selector),
 };
