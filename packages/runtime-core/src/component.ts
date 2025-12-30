@@ -35,6 +35,7 @@ export function createComponentInstance(vnode, parent) {
     slots: {}, // 插槽
     emit: null, // emit 函数
     emitted: null, // 已经触发过的 emitted 函数名称
+    ctx: {}, // 内部上下文，用于 KeepAlive 等内置组件
     // 生命周期钩子
     bm: null, // beforeMount
     m: null, // mounted
@@ -42,6 +43,8 @@ export function createComponentInstance(vnode, parent) {
     u: null, // updated
     bum: null, // beforeUnmount
     um: null, // unmounted
+    a: null, // activated
+    da: null, // deactivated
   };
 
   // 创建 emit 函数，绑定当前实例

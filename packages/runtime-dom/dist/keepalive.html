@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KeepAlive 测试</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        padding: 20px;
+        background: #f5f5f5;
+      }
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        background: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+      h2 {
+        margin-bottom: 20px;
+        color: #333;
+      }
+      h3 {
+        margin: 20px 0 10px;
+        color: #666;
+        font-size: 16px;
+      }
+      button {
+        padding: 8px 16px;
+        margin: 5px;
+        border: none;
+        border-radius: 4px;
+        background: #1976d2;
+        color: #fff;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      button:hover {
+        background: #1565c0;
+      }
+      button.active {
+        background: #388e3c;
+      }
+      button.danger {
+        background: #d32f2f;
+      }
+      .info {
+        padding: 10px;
+        background: #e3f2fd;
+        border-radius: 4px;
+        margin: 10px 0;
+        font-size: 14px;
+        color: #1565c0;
+      }
+      .tab-panel {
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 10px 0;
+        min-height: 150px;
+      }
+      .tab-panel.a {
+        border-color: #1976d2;
+        background: #e3f2fd;
+      }
+      .tab-panel.b {
+        border-color: #388e3c;
+        background: #e8f5e9;
+      }
+      .tab-panel.c {
+        border-color: #f57c00;
+        background: #fff3e0;
+      }
+      .tab-panel.d {
+        border-color: #7b1fa2;
+        background: #f3e5f5;
+      }
+      .counter {
+        font-size: 48px;
+        font-weight: bold;
+        text-align: center;
+        margin: 20px 0;
+      }
+      .log-panel {
+        background: #263238;
+        color: #aed581;
+        padding: 15px;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 13px;
+        max-height: 200px;
+        overflow-y: auto;
+        margin: 10px 0;
+      }
+      .log-item {
+        padding: 2px 0;
+      }
+      .log-item.activated {
+        color: #81c784;
+      }
+      .log-item.deactivated {
+        color: #ffb74d;
+      }
+      .log-item.mounted {
+        color: #64b5f6;
+      }
+      .log-item.unmounted {
+        color: #e57373;
+      }
+      .input-field {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+        width: 200px;
+        margin: 5px;
+      }
+      .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        margin-left: 10px;
+      }
+      .status-badge.cached {
+        background: #c8e6c9;
+        color: #2e7d32;
+      }
+      .status-badge.not-cached {
+        background: #ffcdd2;
+        color: #c62828;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <script type="module">
+      import {
+        render,
+        h,
+        ref,
+        KeepAlive,
+        onMounted,
+        onUnmounted,
+        onActivated,
+        onDeactivated,
+        getCurrentInstance,
+      } from "./runtime-dom.esm.js";
+
+      // 全局日志
+      const logs = ref([]);
+      const addLog = (type, message) => {
+        const time = new Date().toLocaleTimeString();
+        logs.value = [...logs.value, { type, message, time }].slice(-20);
+      };
+      const clearLogs = () => {
+        logs.value = [];
+      };
+
+      // ========== TabA 组件 ==========
+      const TabA = {
+        name: "TabA",
+        setup() {
+          const count = ref(0);
+          const inputValue = ref("");
+
+          onMounted(() => addLog("mounted", "TabA mounted"));
+          onUnmounted(() => addLog("unmounted", "TabA unmounted"));
+          onActivated(() => addLog("activated", "TabA activated"));
+          onDeactivated(() => addLog("deactivated", "TabA deactivated"));
+
+          return () =>
+            h("div", { class: "tab-panel a" }, [
+              h("h4", "Tab A - 计数器"),
+              h(
+                "div",
+                { class: "counter", style: "color: #1976d2" },
+                count.value
+              ),
+              h("div", [
+                h("button", { onClick: () => count.value++ }, "Count++"),
+                h("button", { onClick: () => count.value-- }, "Count--"),
+                h(
+                  "button",
+                  { class: "danger", onClick: () => (count.value = 0) },
+                  "Reset"
+                ),
+              ]),
+              h("div", { style: "margin-top: 15px" }, [
+                h("input", {
+                  class: "input-field",
+                  placeholder: "输入内容测试状态保留",
+                  value: inputValue.value,
+                  onInput: (e) => (inputValue.value = e.target.value),
+                }),
+              ]),
+              h(
+                "p",
+                { style: "margin-top: 10px; color: #666; font-size: 14px" },
+                "切换 Tab 后再切回来，看计数和输入框是否保留"
+              ),
+            ]);
+        },
+      };
+
+      // ========== TabB 组件 ==========
+      const TabB = {
+        name: "TabB",
+        setup() {
+          const items = ref(["Item 1", "Item 2"]);
+          const newItem = ref("");
+
+          onMounted(() => addLog("mounted", "TabB mounted"));
+          onUnmounted(() => addLog("unmounted", "TabB unmounted"));
+          onActivated(() => addLog("activated", "TabB activated"));
+          onDeactivated(() => addLog("deactivated", "TabB deactivated"));
+
+          const addItem = () => {
+            if (newItem.value.trim()) {
+              items.value = [...items.value, newItem.value.trim()];
+              newItem.value = "";
+            }
+          };
+
+          return () =>
+            h("div", { class: "tab-panel b" }, [
+              h("h4", "Tab B - 列表"),
+              h("div", { style: "margin: 10px 0" }, [
+                h("input", {
+                  class: "input-field",
+                  placeholder: "添加新项目",
+                  value: newItem.value,
+                  onInput: (e) => (newItem.value = e.target.value),
+                  onKeyup: (e) => e.key === "Enter" && addItem(),
+                }),
+                h("button", { onClick: addItem }, "添加"),
+              ]),
+              h(
+                "ul",
+                { style: "list-style: none; padding: 0" },
+                items.value.map((item, index) =>
+                  h(
+                    "li",
+                    {
+                      key: index,
+                      style:
+                        "padding: 8px; background: #fff; margin: 5px 0; border-radius: 4px; display: flex; justify-content: space-between;",
+                    },
+                    [
+                      h("span", item),
+                      h(
+                        "button",
+                        {
+                          class: "danger",
+                          style: "padding: 4px 8px; font-size: 12px",
+                          onClick: () => {
+                            items.value = items.value.filter(
+                              (_, i) => i !== index
+                            );
+                          },
+                        },
+                        "删除"
+                      ),
+                    ]
+                  )
+                )
+              ),
+            ]);
+        },
+      };
+
+      // ========== TabC 组件 ==========
+      const TabC = {
+        name: "TabC",
+        setup() {
+          const instance = getCurrentInstance();
+          console.log("TabC setup, instance:", instance);
+          const message = ref("Hello KeepAlive!");
+
+          onMounted(() => addLog("mounted", "TabC mounted"));
+          onUnmounted(() => addLog("unmounted", "TabC unmounted"));
+          onActivated(() => {
+            console.log("TabC onActivated 回调执行");
+            addLog("activated", "TabC activated");
+          });
+          onDeactivated(() => {
+            console.log("TabC onDeactivated 回调执行");
+            addLog("deactivated", "TabC deactivated");
+          });
+
+          console.log(
+            "TabC 注册后 - a:",
+            instance.a?.length,
+            "da:",
+            instance.da?.length
+          );
+
+          return () =>
+            h("div", { class: "tab-panel c" }, [
+              h("h4", "Tab C - 文本编辑"),
+              h("textarea", {
+                style:
+                  "width: 100%; height: 80px; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;",
+                value: message.value,
+                onInput: (e) => (message.value = e.target.value),
+              }),
+              h(
+                "p",
+                { style: "margin-top: 10px; color: #666; font-size: 14px" },
+                `字符数: ${message.value.length}`
+              ),
+            ]);
+        },
+      };
+
+      // ========== TabD 组件 ==========
+      const TabD = {
+        name: "TabD",
+        setup() {
+          const timestamp = ref(Date.now());
+
+          onMounted(() => {
+            addLog("mounted", "TabD mounted");
+            timestamp.value = Date.now();
+          });
+          onUnmounted(() => addLog("unmounted", "TabD unmounted"));
+          onActivated(() => addLog("activated", "TabD activated"));
+          onDeactivated(() => addLog("deactivated", "TabD deactivated"));
+
+          return () =>
+            h("div", { class: "tab-panel d" }, [
+              h("h4", "Tab D - 时间戳"),
+              h(
+                "p",
+                { style: "font-size: 14px; color: #666" },
+                "组件创建时间（不会因缓存而变化）："
+              ),
+              h(
+                "div",
+                {
+                  style:
+                    "font-size: 24px; font-weight: bold; color: #7b1fa2; margin: 15px 0",
+                },
+                new Date(timestamp.value).toLocaleString()
+              ),
+              h(
+                "button",
+                { onClick: () => (timestamp.value = Date.now()) },
+                "手动更新时间"
+              ),
+            ]);
+        },
+      };
+
+      // ========== 日志面板组件 ==========
+      const LogPanel = {
+        setup() {
+          return () =>
+            h("div", [
+              h(
+                "div",
+                {
+                  style:
+                    "display: flex; justify-content: space-between; align-items: center",
+                },
+                [
+                  h("h4", { style: "margin: 0" }, "生命周期日志"),
+                  h(
+                    "button",
+                    {
+                      onClick: clearLogs,
+                      style: "padding: 4px 12px; font-size: 12px",
+                    },
+                    "清空"
+                  ),
+                ]
+              ),
+              h(
+                "div",
+                { class: "log-panel" },
+                logs.value.length === 0
+                  ? h("div", { style: "color: #78909c" }, "暂无日志...")
+                  : logs.value.map((log, index) =>
+                      h("div", { class: `log-item ${log.type}`, key: index }, [
+                        h(
+                          "span",
+                          { style: "color: #78909c" },
+                          `[${log.time}] `
+                        ),
+                        h("span", log.message),
+                      ])
+                    )
+              ),
+            ]);
+        },
+      };
+
+      // ========== 根组件 ==========
+      const App = {
+        setup() {
+          const currentTab = ref("TabA");
+          const useKeepAlive = ref(true);
+          const includeFilter = ref("");
+          const excludeFilter = ref("");
+          const maxCache = ref(0);
+
+          const tabs = [
+            { key: "TabA", label: "Tab A", component: TabA },
+            { key: "TabB", label: "Tab B", component: TabB },
+            { key: "TabC", label: "Tab C", component: TabC },
+            { key: "TabD", label: "Tab D", component: TabD },
+          ];
+
+          const getCurrentComponent = () => {
+            const tab = tabs.find((t) => t.key === currentTab.value);
+            return tab ? tab.component : null;
+          };
+
+          return () =>
+            h("div", { class: "container" }, [
+              h("h2", "KeepAlive 功能测试"),
+
+              // ========== 测试 1：基础缓存 ==========
+              h("h3", "1. 基础缓存测试"),
+              h("p", { class: "info" }, [
+                "切换 Tab 时组件状态会被保留。",
+                "观察下方日志：使用 KeepAlive 时触发 activated/deactivated，",
+                "不使用时触发 mounted/unmounted。",
+              ]),
+
+              // Tab 按钮
+              h(
+                "div",
+                { style: "margin: 10px 0" },
+                tabs.map((tab) =>
+                  h(
+                    "button",
+                    {
+                      key: tab.key,
+                      class: currentTab.value === tab.key ? "active" : "",
+                      onClick: () => (currentTab.value = tab.key),
+                    },
+                    tab.label
+                  )
+                )
+              ),
+
+              // KeepAlive 开关
+              h("div", { style: "margin: 10px 0" }, [
+                h(
+                  "button",
+                  {
+                    class: useKeepAlive.value ? "active" : "danger",
+                    onClick: () => (useKeepAlive.value = !useKeepAlive.value),
+                  },
+                  useKeepAlive.value ? "KeepAlive: ON" : "KeepAlive: OFF"
+                ),
+                h(
+                  "span",
+                  {
+                    class: `status-badge ${
+                      useKeepAlive.value ? "cached" : "not-cached"
+                    }`,
+                  },
+                  useKeepAlive.value ? "状态会被缓存" : "状态不会被缓存"
+                ),
+              ]),
+
+              // 动态组件
+              useKeepAlive.value
+                ? h(
+                    KeepAlive,
+                    {
+                      include: includeFilter.value || undefined,
+                      exclude: excludeFilter.value || undefined,
+                      max: maxCache.value || undefined,
+                    },
+                    () => h(getCurrentComponent(), { key: currentTab.value })
+                  )
+                : h(getCurrentComponent(), { key: currentTab.value }),
+
+              // ========== 测试 2：include/exclude ==========
+              h("h3", "2. include/exclude 过滤"),
+              h("p", { class: "info" }, [
+                "include: 只缓存匹配的组件。",
+                "exclude: 不缓存匹配的组件。",
+                "输入组件名（TabA, TabB, TabC, TabD），多个用逗号分隔。",
+              ]),
+              h("div", { style: "margin: 10px 0" }, [
+                h("label", { style: "margin-right: 10px" }, "include: "),
+                h("input", {
+                  class: "input-field",
+                  placeholder: "例如: TabA,TabB",
+                  value: includeFilter.value,
+                  onInput: (e) => (includeFilter.value = e.target.value),
+                }),
+              ]),
+              h("div", { style: "margin: 10px 0" }, [
+                h("label", { style: "margin-right: 10px" }, "exclude: "),
+                h("input", {
+                  class: "input-field",
+                  placeholder: "例如: TabC,TabD",
+                  value: excludeFilter.value,
+                  onInput: (e) => (excludeFilter.value = e.target.value),
+                }),
+              ]),
+
+              // ========== 测试 3：max 缓存限制 ==========
+              h("h3", "3. max 缓存限制（LRU）"),
+              h("p", { class: "info" }, [
+                "设置 max 后，超出数量的缓存会被淘汰（最久未使用的优先）。",
+                "设为 0 或留空表示不限制。",
+              ]),
+              h("div", { style: "margin: 10px 0" }, [
+                h("label", { style: "margin-right: 10px" }, "max: "),
+                h("input", {
+                  class: "input-field",
+                  type: "number",
+                  min: "0",
+                  placeholder: "例如: 2",
+                  value: maxCache.value || "",
+                  onInput: (e) =>
+                    (maxCache.value = parseInt(e.target.value) || 0),
+                }),
+                h(
+                  "span",
+                  { style: "margin-left: 10px; color: #666; font-size: 14px" },
+                  [
+                    "当前设置: ",
+                    maxCache.value > 0
+                      ? `最多缓存 ${maxCache.value} 个组件`
+                      : "无限制",
+                  ]
+                ),
+              ]),
+
+              // ========== 日志面板 ==========
+              h("h3", "4. 生命周期日志"),
+              h(LogPanel),
+
+              // ========== 测试说明 ==========
+              h("h3", "测试步骤"),
+              h("div", { class: "info" }, [
+                h("p", "1. 在 Tab A 增加计数，输入一些文字"),
+                h("p", "2. 切换到 Tab B，添加几个列表项"),
+                h("p", "3. 切换回 Tab A，确认状态是否保留"),
+                h("p", "4. 关闭 KeepAlive，重复上述操作，观察区别"),
+                h("p", "5. 设置 include='TabA,TabB'，只有 A/B 会被缓存"),
+                h("p", "6. 设置 max=2，访问 A→B→C→D，观察 A 是否被淘汰"),
+              ]),
+            ]);
+        },
+      };
+
+      render(h(App), document.getElementById("app"));
+    </script>
+  </body>
+</html>

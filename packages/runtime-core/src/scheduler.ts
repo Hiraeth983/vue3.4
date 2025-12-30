@@ -38,6 +38,13 @@ function flushJobs() {
   // 2. 执行 post 回调（生命周期钩子）
   flushPostFlushCbs();
 
+  // 3. 如果 post 回调中触发了新的更新或回调，继续执行
+  // 这是关键：生命周期钩子可能修改响应式数据，触发新的组件更新
+  if (queue.length || pendingPostFlushCbs.length) {
+    flushJobs();
+    return;
+  }
+
   isFlushing = false;
 }
 

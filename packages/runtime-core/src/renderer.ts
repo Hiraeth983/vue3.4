@@ -9,6 +9,7 @@ import { createComponentInstance, setupComponent } from "./component";
 import { shouldUpdateComponent } from "./componentRenderUtils";
 import { initSlots, updateSlots } from "./componentSlots";
 import { TeleportImpl } from "./components/Teleport";
+import { isKeepAlive } from "./components/KeepAlive";
 
 export function createRenderer(renderOptions) {
   const {
@@ -76,6 +77,29 @@ export function createRenderer(renderOptions) {
     const instance = createComponentInstance(vnode, parentComponent);
     // 挂载到 vnode 上（patchComponent 需要）
     vnode.component = instance;
+
+    // 如果是 KeepAlive，注入 renderer 方法
+    if (isKeepAlive(vnode)) {
+      instance.ctx = {
+        move(vnode, container, anchor) {
+          const subTree = vnode.component.subTree;
+
+          // Fragment：需要移动所有子节点 + anchor
+          if (subTree.type === Fragment) {
+            subTree.children.forEach((child) => {
+              hostInsert(child.el, container, anchor);
+            });
+            if (subTree.anchor) {
+              hostInsert(subTree.anchor, container, anchor);
+            }
+          } else {
+            hostInsert(subTree.el, container, anchor);
+          }
+        },
+        createElement: hostCreateElement,
+        unmount,
+      };
+    }
 
     // 初始化props
     initProps(instance, vnode.props);
@@ -460,7 +484,15 @@ export function createRenderer(renderOptions) {
     parentComponent = null
   ) => {
     if (n1 == null) {
-      mountComponent(n2, container, anchor, parentComponent);
+      // 检查是否从 KeepAlive 中激活
+      if (n2.shapeFlag & ShapeFlags.COMPONENT_KEPT_ALIVE) {
+        // 从缓存激活，不需要重新挂载
+        const parent = parentComponent;
+        // 找到 KeepAlive 实例
+        parent.ctx.activate(n2, container, anchor);
+      } else {
+        mountComponent(n2, container, anchor, parentComponent);
+      }
     } else {
       patchComponent(n1, n2);
     }
@@ -533,6 +565,13 @@ export function createRenderer(renderOptions) {
 
     // 处理组件
     if (shapeFlag & ShapeFlags.COMPONENT) {
+      // 检查是否应该缓存
+      if (shapeFlag & ShapeFlags.COMPONENT_SHOULD_KEEP_ALIVE) {
+        // 停用而不是卸载，找到父级 KeepAlive
+        const parent = vnode.component.parent;
+        parent.ctx.deactivate(vnode);
+        return;
+      }
       unmountComponent(vnode.component);
       return;
     }

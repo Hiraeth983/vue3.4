@@ -13,12 +13,15 @@ export {
   onUpdated,
   onBeforeUnmount,
   onUnmounted,
+  onActivated,
+  onDeactivated,
 } from "./apiLifecycle";
 export { provide, inject } from "./apiInject";
 
 export { getCurrentInstance, setupComponent } from "./component";
-export { initSlots } from "./componentSlots";
 
+export { initSlots } from "./componentSlots";
 export { renderSlot } from "./helpers/renderSlot";
 
 export { Teleport } from "./components/Teleport";
+export { KeepAlive } from "./components/KeepAlive";

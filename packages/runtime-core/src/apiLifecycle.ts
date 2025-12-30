@@ -52,3 +52,5 @@ export const onBeforeUpdate = createHook(LifecycleHooks.BEFORE_UPDATE);
 export const onUpdated = createHook(LifecycleHooks.UPDATED);
 export const onBeforeUnmount = createHook(LifecycleHooks.BEFORE_UNMOUNT);
 export const onUnmounted = createHook(LifecycleHooks.UNMOUNTED);
+export const onActivated = createHook(LifecycleHooks.ACTIVATED);
+export const onDeactivated = createHook(LifecycleHooks.DEACTIVATED);
