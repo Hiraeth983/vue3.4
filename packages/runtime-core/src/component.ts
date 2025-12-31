@@ -1,4 +1,4 @@
-import { isFunction, isObject } from "@vue/shared";
+import { isFunction, isObject, isPromise } from "@vue/shared";
 import { createEmit } from "./componentEmits";
 import { proxyRefs } from "@vue/reactivity";
 
@@ -45,6 +45,10 @@ export function createComponentInstance(vnode, parent) {
     um: null, // unmounted
     a: null, // activated
     da: null, // deactivated
+    // Suspense
+    asyncDep: null, // setup 返回的 Promise
+    asyncResolved: false, // 异步是否已 resolve
+    suspense: null, // 关联的 Suspense 边界
   };
 
   // 创建 emit 函数，绑定当前实例
@@ -54,7 +58,7 @@ export function createComponentInstance(vnode, parent) {
 }
 
 /**
- * 执行组件的 setup 函数
+ * 执行组件的 setup 函数，支持 async setup
  */
 export function setupComponent(instance) {
   const { type, props } = instance;
@@ -74,7 +78,22 @@ export function setupComponent(instance) {
     unsetCurrentInstance();
 
     // 处理 setup 返回值
-    handleSetupResult(instance, setupResult);
+    if (isPromise(setupResult)) {
+      // async setup，存储 Promise，等待 Suspense 处理
+      instance.asyncDep = setupResult.then(
+        (result) => {
+          instance.asyncResolved = true;
+          handleSetupResult(instance, result);
+          return result;
+        },
+        (err) => {
+          // 错误处理
+          console.error("[Vue] async setup error:", err);
+        }
+      );
+    } else {
+      handleSetupResult(instance, setupResult);
+    }
   }
 }
 

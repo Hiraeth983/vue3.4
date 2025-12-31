@@ -10,6 +10,7 @@ import { shouldUpdateComponent } from "./componentRenderUtils";
 import { initSlots, updateSlots } from "./componentSlots";
 import { TeleportImpl } from "./components/Teleport";
 import { isKeepAlive } from "./components/KeepAlive";
+import { SuspenseImpl } from "./components/Suspense";
 
 export function createRenderer(renderOptions) {
   const {
@@ -78,6 +79,11 @@ export function createRenderer(renderOptions) {
     // 挂载到 vnode 上（patchComponent 需要）
     vnode.component = instance;
 
+    // 如果父组件有 Suspense 边界，继承它
+    if (parentComponent?.suspense) {
+      instance.suspense = parentComponent.suspense;
+    }
+
     // 如果是 KeepAlive，注入 renderer 方法
     if (isKeepAlive(vnode)) {
       instance.ctx = {
@@ -116,7 +122,39 @@ export function createRenderer(renderOptions) {
     const { data = () => {} } = vnode.type;
     instance.data = reactive(data.call(instance.proxy));
 
-    // 设置渲染 effect
+    // 检查异步依赖
+    if (instance.asyncDep) {
+      // 有异步依赖，注册到 Suspense
+      if (instance.suspense) {
+        // 注册依赖，拿到完成回调
+        const onResolved = instance.suspense.registerDep(instance);
+
+        // 不立即执行 setupRenderEffect
+        // 等 async setup resolve 后再渲染
+        instance.asyncDep.then(() => {
+          // resolve 后才挂载
+          if (!instance.isUnmounted) {
+            // 1. 先渲染组件（此时 el 才有值）
+            setupRenderEffect(instance, vnode, container, anchor);
+
+            // 2. 渲染完成后，调用完成回调
+            onResolved();
+          }
+        });
+        return; // 提前返回
+      } else {
+        // 没有 Suspense 包裹，警告并等待
+        console.warn("[Vue] async setup used without Suspense");
+        instance.asyncDep.then(() => {
+          if (!instance.isUnmounted) {
+            setupRenderEffect(instance, vnode, container, anchor);
+          }
+        });
+        return;
+      }
+    }
+
+    // 正常同步挂载
     setupRenderEffect(instance, vnode, container, anchor);
   };
 
@@ -324,6 +362,8 @@ export function createRenderer(renderOptions) {
             TeleportImpl.move(child, container, insertAnchor, {
               hostInsert,
             });
+          } else if (child.shapeFlag & ShapeFlags.SUSPENSE) {
+            SuspenseImpl.move(child, container, insertAnchor, { hostInsert });
           } else {
             hostInsert(child.el, container, insertAnchor);
           }
@@ -547,6 +587,20 @@ export function createRenderer(renderOptions) {
             hostCreateComment,
             querySelector,
           });
+        } else if (shapeFlag & ShapeFlags.SUSPENSE) {
+          SuspenseImpl.process(n1, n2, container, anchor, parentComponent, {
+            patch,
+            mountChildren,
+            patchChildren,
+            unmount,
+            unmountChildren,
+            move: (el, container, anchor) => hostInsert(el, container, anchor),
+            hostInsert,
+            hostRemove,
+            hostCreateElement,
+            hostCreateComment,
+            querySelector,
+          });
         }
     }
   };
@@ -556,6 +610,12 @@ export function createRenderer(renderOptions) {
     if (!vnode || !vnode.el) return;
 
     const { type, children, shapeFlag } = vnode;
+
+    // 处理 Suspense
+    if (shapeFlag & ShapeFlags.SUSPENSE) {
+      SuspenseImpl.remove(vnode, { unmount, unmountChildren, hostRemove });
+      return;
+    }
 
     // 处理 Teleport
     if (shapeFlag & ShapeFlags.TELEPORT) {

@@ -25,3 +25,4 @@ export { renderSlot } from "./helpers/renderSlot";
 
 export { Teleport } from "./components/Teleport";
 export { KeepAlive } from "./components/KeepAlive";
+export { Suspense } from "./components/Suspense";

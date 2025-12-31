@@ -35,4 +35,6 @@ export const invokeArrayFns = (fns: Function[], ...arg: any[]) => {
   }
 };
 
+export const isPromise = (val) => val && typeof val.then === "function";
+
 export * from "./shapeFlages";

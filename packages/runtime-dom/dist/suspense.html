@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Suspense 测试</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        padding: 20px;
+        background: #f5f5f5;
+      }
+      .app-container {
+        max-width: 900px;
+        margin: 0 auto;
+        background: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+      h2 {
+        margin-bottom: 20px;
+        color: #333;
+      }
+      h3 {
+        margin: 20px 0 10px;
+        color: #666;
+        font-size: 16px;
+      }
+      button {
+        padding: 8px 16px;
+        margin: 5px;
+        border: none;
+        border-radius: 4px;
+        background: #1976d2;
+        color: #fff;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      button:hover {
+        background: #1565c0;
+      }
+      button.danger {
+        background: #d32f2f;
+      }
+      button.danger:hover {
+        background: #c62828;
+      }
+      button.success {
+        background: #388e3c;
+      }
+      button.success:hover {
+        background: #2e7d32;
+      }
+      .info {
+        padding: 10px;
+        background: #e3f2fd;
+        border-radius: 4px;
+        margin: 10px 0;
+        font-size: 14px;
+        color: #1565c0;
+      }
+      .test-box {
+        border: 2px dashed #42b883;
+        padding: 15px;
+        margin: 10px 0;
+        border-radius: 8px;
+        min-height: 80px;
+      }
+      .loading {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 20px;
+        background: #fff3e0;
+        border-radius: 8px;
+        color: #e65100;
+      }
+      .loading::before {
+        content: "";
+        width: 20px;
+        height: 20px;
+        border: 3px solid #ffb74d;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .loaded {
+        padding: 20px;
+        background: #e8f5e9;
+        border-radius: 8px;
+        color: #2e7d32;
+      }
+      .error {
+        padding: 20px;
+        background: #ffebee;
+        border-radius: 8px;
+        color: #c62828;
+      }
+      .log-container {
+        background: #263238;
+        color: #aed581;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 10px 0;
+        font-family: monospace;
+        font-size: 13px;
+        max-height: 200px;
+        overflow-y: auto;
+      }
+      .log-item {
+        padding: 2px 0;
+      }
+      .log-item.pending {
+        color: #ffb74d;
+      }
+      .log-item.fallback {
+        color: #4fc3f7;
+      }
+      .log-item.resolve {
+        color: #81c784;
+      }
+      .log-item.timeout {
+        color: #e57373;
+      }
+      .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: bold;
+        margin-left: 10px;
+      }
+      .status-badge.pending {
+        background: #fff3e0;
+        color: #e65100;
+      }
+      .status-badge.resolved {
+        background: #e8f5e9;
+        color: #2e7d32;
+      }
+      .nested-suspense {
+        border: 2px solid #9c27b0;
+        padding: 15px;
+        margin: 10px;
+        border-radius: 8px;
+      }
+      .nested-suspense::before {
+        content: "嵌套 Suspense";
+        display: block;
+        font-size: 12px;
+        color: #9c27b0;
+        margin-bottom: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <script type="module">
+      import {
+        render,
+        h,
+        ref,
+        reactive,
+        Suspense,
+        onMounted,
+      } from "./runtime-dom.esm.js";
+
+      // ========== 日志系统 ==========
+      const logs = reactive([]);
+      const addLog = (type, message) => {
+        const time = new Date().toLocaleTimeString();
+        logs.push({ type, message, time });
+      };
+      const clearLogs = () => {
+        logs.length = 0;
+      };
+
+      // ========== 模拟延迟函数 ==========
+      const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+      // ========== 异步组件 1：基础异步 ==========
+      const AsyncComponent = {
+        name: "AsyncComponent",
+        async setup() {
+          addLog("pending", "AsyncComponent: 开始加载...");
+
+          // 模拟异步请求
+          await delay(2000);
+
+          addLog("resolve", "AsyncComponent: 加载完成!");
+
+          const count = ref(0);
+
+          onMounted(() => {
+            addLog("resolve", "AsyncComponent: onMounted 触发");
+          });
+
+          return () =>
+            h("div", { class: "loaded" }, [
+              h("p", "✅ 异步组件加载成功！"),
+              h("p", `计数器: ${count.value}`),
+              h("button", { onClick: () => count.value++ }, "增加"),
+            ]);
+        },
+      };
+
+      // ========== 异步组件 2：快速加载 ==========
+      const FastAsyncComponent = {
+        name: "FastAsyncComponent",
+        async setup() {
+          addLog("pending", "FastAsyncComponent: 开始加载...");
+          await delay(500);
+          addLog("resolve", "FastAsyncComponent: 加载完成!");
+
+          return () => h("div", { class: "loaded" }, "⚡ 快速异步组件（500ms）");
+        },
+      };
+
+      // ========== 异步组件 3：慢速加载（用于测试超时）==========
+      const SlowAsyncComponent = {
+        name: "SlowAsyncComponent",
+        async setup() {
+          addLog("pending", "SlowAsyncComponent: 开始加载...");
+          await delay(5000);
+          addLog("resolve", "SlowAsyncComponent: 加载完成!");
+
+          return () => h("div", { class: "loaded" }, "🐢 慢速异步组件（5秒）");
+        },
+      };
+
+      // ========== 同步组件（对照）==========
+      const SyncComponent = {
+        name: "SyncComponent",
+        setup() {
+          return () => h("div", { class: "loaded" }, "📦 我是同步组件（无需等待）");
+        },
+      };
+
+      // ========== Loading 组件 ==========
+      const Loading = {
+        setup() {
+          return () => h("div", { class: "loading" }, "加载中，请稍候...");
+        },
+      };
+
+      // ========== 日志面板组件 ==========
+      const LogPanel = {
+        setup() {
+          return () =>
+            h("div", { class: "log-container" }, [
+              logs.length === 0
+                ? h("div", { class: "log-item" }, "暂无日志...")
+                : logs.map((log, i) =>
+                    h("div", { class: `log-item ${log.type}`, key: i }, [
+                      `[${log.time}] `,
+                      `[${log.type.toUpperCase()}] `,
+                      log.message,
+                    ])
+                  ),
+            ]);
+        },
+      };
+
+      // ========== 主应用 ==========
+      const App = {
+        setup() {
+          const showBasic = ref(false);
+          const showFast = ref(false);
+          const showTimeout = ref(false);
+          const showSync = ref(false);
+          const showMultiple = ref(false);
+          const showNested = ref(false);
+
+          return () =>
+            h("div", { class: "app-container" }, [
+              h("h2", "Suspense 组件测试"),
+
+              // 日志面板
+              h("h3", "事件日志"),
+              h(LogPanel),
+              h("button", { class: "danger", onClick: clearLogs }, "清空日志"),
+
+              // ========== 测试 1：基础 Suspense ==========
+              h("h3", [
+                "1. 基础 Suspense",
+                showBasic.value
+                  ? h("span", { class: "status-badge pending" }, "加载中")
+                  : null,
+              ]),
+              h(
+                "p",
+                { class: "info" },
+                "测试点：async setup + fallback/default 切换"
+              ),
+              h(
+                "button",
+                { onClick: () => (showBasic.value = !showBasic.value) },
+                showBasic.value ? "隐藏" : "显示异步组件"
+              ),
+              h("div", { class: "test-box" }, [
+                showBasic.value
+                  ? h(
+                      Suspense,
+                      {
+                        onPending: () => addLog("pending", "Suspense: onPending"),
+                        onFallback: () => addLog("fallback", "Suspense: onFallback"),
+                        onResolve: () => addLog("resolve", "Suspense: onResolve"),
+                      },
+                      {
+                        default: () => h(AsyncComponent),
+                        fallback: () => h(Loading),
+                      }
+                    )
+                  : h("p", "点击按钮加载异步组件"),
+              ]),
+
+              // ========== 测试 2：快速异步组件 ==========
+              h("h3", "2. 快速异步组件（500ms）"),
+              h(
+                "p",
+                { class: "info" },
+                "测试点：短时间内 resolve，fallback 闪烁问题"
+              ),
+              h(
+                "button",
+                { onClick: () => (showFast.value = !showFast.value) },
+                showFast.value ? "隐藏" : "显示"
+              ),
+              h("div", { class: "test-box" }, [
+                showFast.value
+                  ? h(
+                      Suspense,
+                      {
+                        onPending: () => addLog("pending", "Fast Suspense: onPending"),
+                        onResolve: () => addLog("resolve", "Fast Suspense: onResolve"),
+                      },
+                      {
+                        default: () => h(FastAsyncComponent),
+                        fallback: () => h(Loading),
+                      }
+                    )
+                  : h("p", "点击按钮加载"),
+              ]),
+
+              // ========== 测试 3：同步组件（无需 Suspense）==========
+              h("h3", "3. 同步组件（对照测试）"),
+              h(
+                "p",
+                { class: "info" },
+                "测试点：同步组件应该直接显示，不显示 fallback"
+              ),
+              h(
+                "button",
+                { onClick: () => (showSync.value = !showSync.value) },
+                showSync.value ? "隐藏" : "显示"
+              ),
+              h("div", { class: "test-box" }, [
+                showSync.value
+                  ? h(
+                      Suspense,
+                      {
+                        onPending: () => addLog("pending", "Sync Suspense: onPending"),
+                        onFallback: () =>
+                          addLog("fallback", "Sync Suspense: onFallback (不应该触发!)"),
+                        onResolve: () => addLog("resolve", "Sync Suspense: onResolve"),
+                      },
+                      {
+                        default: () => h(SyncComponent),
+                        fallback: () => h(Loading),
+                      }
+                    )
+                  : h("p", "点击按钮加载"),
+              ]),
+
+              // ========== 测试 4：超时处理 ==========
+              h("h3", "4. 超时处理（timeout: 3000ms）"),
+              h(
+                "p",
+                { class: "info" },
+                "测试点：组件加载超过 3 秒触发 onTimeout"
+              ),
+              h(
+                "button",
+                { onClick: () => (showTimeout.value = !showTimeout.value) },
+                showTimeout.value ? "隐藏" : "显示慢速组件"
+              ),
+              h("div", { class: "test-box" }, [
+                showTimeout.value
+                  ? h(
+                      Suspense,
+                      {
+                        timeout: 3000,
+                        onPending: () => addLog("pending", "Timeout Suspense: onPending"),
+                        onFallback: () => addLog("fallback", "Timeout Suspense: onFallback"),
+                        onResolve: () => addLog("resolve", "Timeout Suspense: onResolve"),
+                        onTimeout: () => addLog("timeout", "Timeout Suspense: ⚠️ 超时了！"),
+                      },
+                      {
+                        default: () => h(SlowAsyncComponent),
+                        fallback: () => h(Loading),
+                      }
+                    )
+                  : h("p", "点击按钮加载（会超时）"),
+              ]),
+
+              // ========== 测试 5：多个异步组件 ==========
+              h("h3", "5. 多个异步组件"),
+              h(
+                "p",
+                { class: "info" },
+                "测试点：Suspense 内多个异步组件，全部 resolve 后才切换"
+              ),
+              h(
+                "button",
+                { onClick: () => (showMultiple.value = !showMultiple.value) },
+                showMultiple.value ? "隐藏" : "显示"
+              ),
+              h("div", { class: "test-box" }, [
+                showMultiple.value
+                  ? h(
+                      Suspense,
+                      {
+                        onPending: () => addLog("pending", "Multiple: onPending"),
+                        onFallback: () => addLog("fallback", "Multiple: onFallback"),
+                        onResolve: () =>
+                          addLog("resolve", "Multiple: onResolve (全部完成)"),
+                      },
+                      {
+                        default: () => [
+                          h(FastAsyncComponent),
+                          h(AsyncComponent),
+                        ],
+                        fallback: () => h(Loading),
+                      }
+                    )
+                  : h("p", "点击按钮加载多个异步组件"),
+              ]),
+
+              // ========== 测试 6：嵌套 Suspense ==========
+              h("h3", "6. 嵌套 Suspense"),
+              h(
+                "p",
+                { class: "info" },
+                "测试点：内层 Suspense 独立处理自己的异步依赖"
+              ),
+              h(
+                "button",
+                { onClick: () => (showNested.value = !showNested.value) },
+                showNested.value ? "隐藏" : "显示"
+              ),
+              h("div", { class: "test-box" }, [
+                showNested.value
+                  ? h(
+                      Suspense,
+                      {
+                        onPending: () => addLog("pending", "Outer: onPending"),
+                        onFallback: () => addLog("fallback", "Outer: onFallback"),
+                        onResolve: () => addLog("resolve", "Outer: onResolve"),
+                      },
+                      {
+                        default: () => [
+                          h(FastAsyncComponent),
+                          h("div", { class: "nested-suspense" }, [
+                            h(
+                              Suspense,
+                              {
+                                suspensible: false, // 不向父级冒泡
+                                onPending: () => addLog("pending", "  Inner: onPending"),
+                                onFallback: () => addLog("fallback", "  Inner: onFallback"),
+                                onResolve: () => addLog("resolve", "  Inner: onResolve"),
+                              },
+                              {
+                                default: () => h(AsyncComponent),
+                                fallback: () =>
+                                  h("div", { class: "loading" }, "内层加载中..."),
+                              }
+                            ),
+                          ]),
+                        ],
+                        fallback: () => h(Loading),
+                      }
+                    )
+                  : h("p", "点击按钮测试嵌套 Suspense"),
+              ]),
+
+              // ========== 测试说明 ==========
+              h("h3", "测试说明"),
+              h("div", { class: "info" }, [
+                h("p", "✅ 预期行为："),
+                h("ul", { style: "margin: 10px 0 0 20px;" }, [
+                  h("li", "基础测试：显示 Loading → 2秒后显示内容"),
+                  h("li", "快速组件：Loading 闪现 → 500ms 后显示内容"),
+                  h("li", "同步组件：直接显示内容，不显示 Loading"),
+                  h("li", "超时测试：3秒后日志显示超时，5秒后组件加载完成"),
+                  h("li", "多组件：等待最慢的组件（2秒）完成后一起显示"),
+                  h("li", "嵌套：外层先完成（500ms），内层独立等待（2秒）"),
+                ]),
+              ]),
+            ]);
+        },
+      };
+
+      render(h(App), document.getElementById("app"));
+    </script>
+  </body>
+</html>

@@ -7,6 +7,7 @@ import {
   ShapeFlags,
 } from "@vue/shared";
 import { isTeleport } from "./components/Teleport";
+import { isSuspense } from "./components/Suspense";
 
 export const Text = Symbol.for("v-txt");
 export const Fragment = Symbol.for("v-fgt");
@@ -15,6 +16,8 @@ export const Comment = Symbol.for("v-cmt");
 export function createVnode(type, props, children?) {
   const shapeFlag = isString(type)
     ? ShapeFlags.ELEMENT // 元素
+    : isSuspense(type) // 新增：Suspense 检测
+    ? ShapeFlags.SUSPENSE
     : isTeleport(type)
     ? ShapeFlags.TELEPORT // Teleport（必须在 isObject 之前）
     : isObject(type)
@@ -32,6 +35,7 @@ export function createVnode(type, props, children?) {
     targetAnchor: null, // Teleport的目标容器的挂载锚点 真实节点
     shapeFlag,
     anchor: null, // Fragment 的结束锚点
+    suspense: null, // Suspense 边界引用
   };
 
   if (children !== null) {
