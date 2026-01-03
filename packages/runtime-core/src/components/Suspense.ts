@@ -74,7 +74,7 @@ function registerAsyncDep(suspense, instance, internals) {
 function resolveSuspense(suspense, internals) {
   const { vnode, activeBranch, pendingBranch, container, anchor, effects } =
     suspense;
-  const { patch, unmount, move } = internals;
+  const { patch, unmount, move, hostInsert } = internals;
 
   // 清除超时定时器
   if (suspense.timeoutId) {
@@ -89,8 +89,8 @@ function resolveSuspense(suspense, internals) {
 
   // 将 pending 内容移到真实容器
   if (pendingBranch) {
-    // pendingBranch 可能在隐藏容器中，需要移动
-    move(pendingBranch.el, container, anchor);
+    // pendingBranch 可能是 Fragment，需要特殊处理
+    moveBranch(pendingBranch, container, anchor, hostInsert);
     suspense.activeBranch = pendingBranch;
     vnode.el = pendingBranch.el;
   }
@@ -108,6 +108,28 @@ function resolveSuspense(suspense, internals) {
   // 执行收集的副作用（mounted 钩子等）
   effects.forEach((fn) => fn());
   suspense.effects.length = 0;
+}
+
+/**
+ * 移动分支节点到容器
+ * 处理 Fragment 需要移动所有子节点的情况
+ */
+function moveBranch(branch, container, anchor, hostInsert) {
+  if (branch.type === Fragment) {
+    // Fragment：移动所有子节点 + anchor
+    // 注意：直接使用 child.el 而不是 branch.el，因为异步组件完成后 child.el 会更新，但 branch.el（patch 时的快照）不会同步更新
+    branch.children.forEach((child) => {
+      hostInsert(child.el, container, anchor);
+    });
+    if (branch.anchor) {
+      hostInsert(branch.anchor, container, anchor);
+    }
+    // 同步更新 Fragment 的 el 引用
+    branch.el = branch.children.length > 0 ? branch.children[0].el : branch.anchor;
+  } else {
+    // 普通节点：直接移动 el
+    hostInsert(branch.el, container, anchor);
+  }
 }
 
 // Suspense 组件定义
@@ -160,7 +182,7 @@ export const SuspenseImpl = {
     const suspense = vnode.suspense;
 
     if (suspense.activeBranch) {
-      hostInsert(suspense.activeBranch.el, container, anchor);
+      moveBranch(suspense.activeBranch, container, anchor, hostInsert);
     }
   },
 };
@@ -250,8 +272,8 @@ function mountSuspense(vnode, container, anchor, parentComponent, internals) {
   } else {
     // 没有异步依赖，直接显示 default
     if (pendingBranch) {
-      // 从隐藏容器移到真实容器
-      hostInsert(pendingBranch.el, container, anchor);
+      // 从隐藏容器移到真实容器（处理 Fragment）
+      moveBranch(pendingBranch, container, anchor, hostInsert);
       suspense.activeBranch = pendingBranch;
       vnode.el = pendingBranch.el;
     }
