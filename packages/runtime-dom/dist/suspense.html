@@ -225,7 +225,8 @@
           await delay(500);
           addLog("resolve", "FastAsyncComponent: 加载完成!");
 
-          return () => h("div", { class: "loaded" }, "⚡ 快速异步组件（500ms）");
+          return () =>
+            h("div", { class: "loaded" }, "⚡ 快速异步组件（500ms）");
         },
       };
 
@@ -245,7 +246,8 @@
       const SyncComponent = {
         name: "SyncComponent",
         setup() {
-          return () => h("div", { class: "loaded" }, "📦 我是同步组件（无需等待）");
+          return () =>
+            h("div", { class: "loaded" }, "📦 我是同步组件（无需等待）");
         },
       };
 
@@ -315,9 +317,12 @@
                   ? h(
                       Suspense,
                       {
-                        onPending: () => addLog("pending", "Suspense: onPending"),
-                        onFallback: () => addLog("fallback", "Suspense: onFallback"),
-                        onResolve: () => addLog("resolve", "Suspense: onResolve"),
+                        onPending: () =>
+                          addLog("pending", "Suspense: onPending"),
+                        onFallback: () =>
+                          addLog("fallback", "Suspense: onFallback"),
+                        onResolve: () =>
+                          addLog("resolve", "Suspense: onResolve"),
                       },
                       {
                         default: () => h(AsyncComponent),
@@ -344,8 +349,10 @@
                   ? h(
                       Suspense,
                       {
-                        onPending: () => addLog("pending", "Fast Suspense: onPending"),
-                        onResolve: () => addLog("resolve", "Fast Suspense: onResolve"),
+                        onPending: () =>
+                          addLog("pending", "Fast Suspense: onPending"),
+                        onResolve: () =>
+                          addLog("resolve", "Fast Suspense: onResolve"),
                       },
                       {
                         default: () => h(FastAsyncComponent),
@@ -372,10 +379,15 @@
                   ? h(
                       Suspense,
                       {
-                        onPending: () => addLog("pending", "Sync Suspense: onPending"),
+                        onPending: () =>
+                          addLog("pending", "Sync Suspense: onPending"),
                         onFallback: () =>
-                          addLog("fallback", "Sync Suspense: onFallback (不应该触发!)"),
-                        onResolve: () => addLog("resolve", "Sync Suspense: onResolve"),
+                          addLog(
+                            "fallback",
+                            "Sync Suspense: onFallback (不应该触发!)"
+                          ),
+                        onResolve: () =>
+                          addLog("resolve", "Sync Suspense: onResolve"),
                       },
                       {
                         default: () => h(SyncComponent),
@@ -403,10 +415,14 @@
                       Suspense,
                       {
                         timeout: 3000,
-                        onPending: () => addLog("pending", "Timeout Suspense: onPending"),
-                        onFallback: () => addLog("fallback", "Timeout Suspense: onFallback"),
-                        onResolve: () => addLog("resolve", "Timeout Suspense: onResolve"),
-                        onTimeout: () => addLog("timeout", "Timeout Suspense: ⚠️ 超时了！"),
+                        onPending: () =>
+                          addLog("pending", "Timeout Suspense: onPending"),
+                        onFallback: () =>
+                          addLog("fallback", "Timeout Suspense: onFallback"),
+                        onResolve: () =>
+                          addLog("resolve", "Timeout Suspense: onResolve"),
+                        onTimeout: () =>
+                          addLog("timeout", "Timeout Suspense: ⚠️ 超时了！"),
                       },
                       {
                         default: () => h(SlowAsyncComponent),
@@ -433,8 +449,10 @@
                   ? h(
                       Suspense,
                       {
-                        onPending: () => addLog("pending", "Multiple: onPending"),
-                        onFallback: () => addLog("fallback", "Multiple: onFallback"),
+                        onPending: () =>
+                          addLog("pending", "Multiple: onPending"),
+                        onFallback: () =>
+                          addLog("fallback", "Multiple: onFallback"),
                         onResolve: () =>
                           addLog("resolve", "Multiple: onResolve (全部完成)"),
                       },
@@ -467,7 +485,8 @@
                       Suspense,
                       {
                         onPending: () => addLog("pending", "Outer: onPending"),
-                        onFallback: () => addLog("fallback", "Outer: onFallback"),
+                        onFallback: () =>
+                          addLog("fallback", "Outer: onFallback"),
                         onResolve: () => addLog("resolve", "Outer: onResolve"),
                       },
                       {
@@ -478,14 +497,21 @@
                               Suspense,
                               {
                                 suspensible: false, // 不向父级冒泡
-                                onPending: () => addLog("pending", "  Inner: onPending"),
-                                onFallback: () => addLog("fallback", "  Inner: onFallback"),
-                                onResolve: () => addLog("resolve", "  Inner: onResolve"),
+                                onPending: () =>
+                                  addLog("pending", "  Inner: onPending"),
+                                onFallback: () =>
+                                  addLog("fallback", "  Inner: onFallback"),
+                                onResolve: () =>
+                                  addLog("resolve", "  Inner: onResolve"),
                               },
                               {
                                 default: () => h(AsyncComponent),
                                 fallback: () =>
-                                  h("div", { class: "loading" }, "内层加载中..."),
+                                  h(
+                                    "div",
+                                    { class: "loading" },
+                                    "内层加载中..."
+                                  ),
                               }
                             ),
                           ]),

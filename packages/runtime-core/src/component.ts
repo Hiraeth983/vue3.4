@@ -5,8 +5,20 @@ import { proxyRefs } from "@vue/reactivity";
 // 当前组件实例（生命周期钩子需要）
 export let currentInstance = null;
 
-export const setCurrentInstance = (instance) => (currentInstance = instance);
-export const unsetCurrentInstance = () => (currentInstance = null);
+// 实例栈：解决 async setup 期间其他组件渲染覆盖 currentInstance 的问题
+const instanceStack = [];
+
+export const setCurrentInstance = (instance) => {
+  instanceStack.push(instance);
+  currentInstance = instance;
+};
+
+export const unsetCurrentInstance = () => {
+  instanceStack.pop();
+  // 恢复到上一个实例（如果有）
+  currentInstance = instanceStack[instanceStack.length - 1] || null;
+};
+
 export const getCurrentInstance = () => currentInstance;
 
 // 创建组件实例
@@ -74,24 +86,28 @@ export function setupComponent(instance) {
     // 执行 setup，传入 props 和 context
     const setupResult = setup(props, setupContext);
 
-    // 清除当前实例
-    unsetCurrentInstance();
-
     // 处理 setup 返回值
     if (isPromise(setupResult)) {
       // async setup，存储 Promise，等待 Suspense 处理
-      instance.asyncDep = setupResult.then(
-        (result) => {
-          instance.asyncResolved = true;
-          handleSetupResult(instance, result);
-          return result;
-        },
-        (err) => {
-          // 错误处理
-          console.error("[Vue] async setup error:", err);
-        }
-      );
+      instance.asyncDep = setupResult
+        .then(
+          (result) => {
+            instance.asyncResolved = true;
+            handleSetupResult(instance, result);
+            return result;
+          },
+          (err) => {
+            // 错误处理
+            console.error("[Vue] async setup error:", err);
+          }
+        )
+        .finally(() => {
+          // 等待 Promise 完成后再清除当前实例
+          unsetCurrentInstance();
+        });
     } else {
+      // 清除当前实例
+      unsetCurrentInstance();
       handleSetupResult(instance, setupResult);
     }
   }
