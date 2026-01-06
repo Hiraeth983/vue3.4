@@ -1,5 +1,5 @@
 import { isFunction } from "@vue/shared";
-import { createVnode, Fragment } from "../vnode";
+import { createVNode, Fragment } from "../vnode";
 
 /**
  * 渲染插槽内容
@@ -31,5 +31,5 @@ export function renderSlot(slots, name, props: any = {}, fallback?) {
 
   // 用 Fragment 包裹，因为插槽可能返回多个根节点
   // 比如 <template #default><span>A</span><span>B</span></template>
-  return createVnode(Fragment, { key: props.key }, children);
+  return createVNode(Fragment, { key: props.key }, children);
 }

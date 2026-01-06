@@ -1037,7 +1037,7 @@ function patchSuspense(n1, n2, container, anchor, parentComponent, internals) {
 }
 function normalizeSlot(slot) {
   if (isArray(slot)) {
-    return createVnode(Fragment, null, slot);
+    return createVNode(Fragment, null, slot);
   }
   return slot;
 }
@@ -1047,7 +1047,7 @@ var Suspense = SuspenseImpl;
 var Text = /* @__PURE__ */ Symbol.for("v-txt");
 var Fragment = /* @__PURE__ */ Symbol.for("v-fgt");
 var Comment = /* @__PURE__ */ Symbol.for("v-cmt");
-function createVnode(type, props, children) {
+function createVNode(type, props, children) {
   const shapeFlag = isString(type) ? 1 /* ELEMENT */ : isSuspense(type) ? 128 /* SUSPENSE */ : isTeleport(type) ? 64 /* TELEPORT */ : isObject(type) ? 4 /* STATEFUL_COMPONENT */ : 0;
   const vnode = {
     __v_isVnode: true,
@@ -1094,13 +1094,13 @@ function isSameVnode(n1, n2) {
 }
 function normalizeVnode(child) {
   if (child == null || typeof child === "boolean") {
-    return createVnode(Comment, null, "");
+    return createVNode(Comment, null, "");
   }
   if (isString(child) || isNumber(child)) {
-    return createVnode(Text, null, String(child));
+    return createVNode(Text, null, String(child));
   }
   if (isArray(child)) {
-    return createVnode(Fragment, null, child);
+    return createVNode(Fragment, null, child);
   }
   return child;
 }
@@ -1111,11 +1111,11 @@ function h(type, propsOrChildren, children) {
   if (argsLen === 2) {
     if (isObject(propsOrChildren) && !isArray(propsOrChildren)) {
       if (isVnode(propsOrChildren)) {
-        return createVnode(type, null, [propsOrChildren]);
+        return createVNode(type, null, [propsOrChildren]);
       }
-      return createVnode(type, propsOrChildren);
+      return createVNode(type, propsOrChildren);
     } else {
-      return createVnode(type, null, propsOrChildren);
+      return createVNode(type, null, propsOrChildren);
     }
   } else {
     if (argsLen > 3) {
@@ -1123,7 +1123,7 @@ function h(type, propsOrChildren, children) {
     } else if (argsLen === 3 && isVnode(children)) {
       children = [children];
     }
-    return createVnode(type, propsOrChildren, children);
+    return createVNode(type, propsOrChildren, children);
   }
 }
 
@@ -2118,7 +2118,7 @@ function renderSlot(slots, name, props = {}, fallback) {
   } else if (fallback) {
     children = fallback();
   }
-  return createVnode(Fragment, { key: props.key }, children);
+  return createVNode(Fragment, { key: props.key }, children);
 }
 
 // packages/runtime-dom/src/index.ts
@@ -2138,7 +2138,7 @@ export {
   activeEffect,
   computed,
   createRenderer,
-  createVnode,
+  createVNode,
   effect,
   getCurrentInstance,
   h,

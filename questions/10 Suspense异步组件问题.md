@@ -115,7 +115,7 @@ h(Suspense, {}, {
 ```js
 function normalizeSlot(slot) {
   if (isArray(slot)) {
-    return createVnode(Fragment, null, slot);
+    return createVNode(Fragment, null, slot);
   }
   return slot;
 }

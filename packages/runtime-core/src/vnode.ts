@@ -13,7 +13,7 @@ export const Text = Symbol.for("v-txt");
 export const Fragment = Symbol.for("v-fgt");
 export const Comment = Symbol.for("v-cmt");
 
-export function createVnode(type, props, children?) {
+export function createVNode(type, props, children?) {
   const shapeFlag = isString(type)
     ? ShapeFlags.ELEMENT // 元素
     : isSuspense(type) // 新增：Suspense 检测
@@ -74,15 +74,15 @@ export function isSameVnode(n1, n2) {
 export function normalizeVnode(child) {
   // null/undefined/boolean → 注释节点（不渲染任何内容）
   if (child == null || typeof child === "boolean") {
-    return createVnode(Comment, null, "");
+    return createVNode(Comment, null, "");
   }
   // 字符串/数字 → 文本节点
   if (isString(child) || isNumber(child)) {
-    return createVnode(Text, null, String(child));
+    return createVNode(Text, null, String(child));
   }
   // 数组 → Fragment 包裹
   if (isArray(child)) {
-    return createVnode(Fragment, null, child);
+    return createVNode(Fragment, null, child);
   }
   // 已经是 vnode，直接返回
   return child;

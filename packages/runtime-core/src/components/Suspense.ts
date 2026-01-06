@@ -1,5 +1,5 @@
 import { isArray } from "@vue/shared";
-import { createVnode, Fragment } from "../vnode";
+import { createVNode, Fragment } from "../vnode";
 
 export const isSuspense = (type) => type?.__isSuspense;
 
@@ -324,7 +324,7 @@ function patchSuspense(n1, n2, container, anchor, parentComponent, internals) {
 function normalizeSlot(slot) {
   // 插槽可能返回数组，需要包装成 Fragment
   if (isArray(slot)) {
-    return createVnode(Fragment, null, slot);
+    return createVNode(Fragment, null, slot);
   }
   return slot;
 }
