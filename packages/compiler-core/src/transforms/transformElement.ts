@@ -1,0 +1,118 @@
+import {
+  ElementNode,
+  ElementPropNode,
+  NodeTypes,
+  ObjectExpression,
+  Property,
+  VNodeCall,
+} from "../ast";
+import { CREATE_VNODE, TransformContext } from "../transform";
+
+/**
+ * transformElement 插件
+ * 职责：把 ElementNode 转换成 VNodeCall
+ */
+export function transformElement(node, context: TransformContext) {
+  // 只处理元素节点
+  if (node.type !== NodeTypes.ELEMENT) {
+    return;
+  }
+
+  // 返回退出函数，等子节点处理完再执行
+  return () => {
+    const { tag, props, children } = node as ElementNode;
+
+    // 1. 处理 Tag
+    const vnodeTag = `"${tag}"`;
+
+    // 2. 处理 props
+    let vnodeProps: ObjectExpression | undefined;
+    if (props.length > 0) {
+      vnodeProps = buildProps(props, context);
+    }
+
+    // 3. 处理 children
+    let vnodeChildren: any;
+    if (children.length === 1) {
+      vnodeChildren = children[0];
+    } else if (children.length > 1) {
+      vnodeChildren = children;
+    }
+
+    // 4. 创建 VNodeCall
+    const vnode: VNodeCall = {
+      type: NodeTypes.VNODE_CALL,
+      tag: vnodeTag,
+      props: vnodeProps,
+      children: vnodeChildren,
+    };
+
+    // 添加 helper
+    context.helper(CREATE_VNODE);
+
+    // 挂载到节点上
+    (node as ElementNode).codegenNode = vnode;
+  };
+}
+
+// 构建 props 对象
+function buildProps(
+  props: ElementPropNode[],
+  context: TransformContext
+): ObjectExpression {
+  const properties: Property[] = [];
+
+  for (const prop of props) {
+    if (prop.type === NodeTypes.ATTRIBUTE) {
+      // 普通属性 id="app"
+      properties.push({
+        type: NodeTypes.JS_PROPERTY,
+        key: {
+          type: NodeTypes.SIMPLE_EXPRESSION,
+          content: prop.name,
+          isStatic: true,
+        },
+        value: {
+          type: NodeTypes.SIMPLE_EXPRESSION,
+          content: prop.value ? `"${prop.value.content}"` : "true",
+          isStatic: true,
+        },
+      });
+    } else if (prop.type === NodeTypes.DIRECTIVE) {
+      // 指令，根据类型分别处理
+      if (prop.name === "bind") {
+        // v-bind / :xxx
+        properties.push({
+          type: NodeTypes.JS_PROPERTY,
+          key: {
+            type: NodeTypes.SIMPLE_EXPRESSION,
+            content: prop.arg?.content || "",
+            isStatic: prop.arg?.isStatic ?? true,
+          },
+          value: prop.exp!,
+        });
+      } else if (prop.name === "on") {
+        // v-on / @xxx
+        const eventName = "on" + capitalize(prop.arg?.content || "");
+        properties.push({
+          type: NodeTypes.JS_PROPERTY,
+          key: {
+            type: NodeTypes.SIMPLE_EXPRESSION,
+            content: eventName,
+            isStatic: true,
+          },
+          value: prop.exp!,
+        });
+      }
+    }
+  }
+
+  return {
+    type: NodeTypes.JS_OBJECT_EXPRESSION,
+    properties,
+  };
+}
+
+function capitalize(str: string): string {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}

@@ -1,0 +1,183 @@
+import { ElementNode, NodeTypes, RootNode, TemplateChildNode } from "./ast";
+
+/**
+ * Transform 阶段概述
+ * 核心职责：把模板 AST 转换成适合代码生成的 JS AST
+ * 
+ * 模板 AST                        JS AST (codegenNode)
+    ─────────                       ──────────────────
+    ElementNode {                   {
+      tag: 'div',          →          type: VNODE_CALL,
+      props: [...],                   tag: '"div"',
+      children: [...]                 props: {...},
+    }                                }
+ */
+
+// 转换插件类型
+type NodeTransform = (
+  node: RootNode | TemplateChildNode,
+  context: TransformContext
+) => void | (() => void); // 可以返回退出函数
+
+// 转换上下文
+export interface TransformContext {
+  root: RootNode; // 根节点
+  parent: RootNode | TemplateChildNode | null; // 父节点
+  currentNode: RootNode | TemplateChildNode | null; // 当前节点
+  childIndex: number; // 当前节点在父节点中的索引
+  helpers: Set<symbol>; // 收集用到的运行时函数
+  nodeTransforms: NodeTransform[]; // 转换插件列表
+
+  // 方法
+  helper(name: symbol): symbol; // 添加 helper
+  replaceNode(node: TemplateChildNode): void; // 替换当前节点
+  removeNode(): void; // 删除当前节点
+}
+
+// 运行时帮助函数符号
+export const CREATE_VNODE = Symbol("createVNode");
+export const TO_DISPLAY_STRING = Symbol("toDisplayString");
+export const RENDER_LIST = Symbol("renderList");
+export const CREATE_COMMENT = Symbol("createComment");
+export const FRAGMENT = Symbol("Fragment");
+
+// 符号到函数名的映射
+export const helperNameMap: Record<symbol, string> = {
+  [CREATE_VNODE]: "createVNode",
+  [TO_DISPLAY_STRING]: "toDisplayString",
+  [RENDER_LIST]: "renderList",
+  [CREATE_COMMENT]: "createComment",
+  [FRAGMENT]: "Fragment",
+};
+
+function createTransformContext(
+  root: RootNode,
+  options: { nodeTransforms?: NodeTransform[] } = {}
+): TransformContext {
+  const context: TransformContext = {
+    root,
+    parent: null,
+    currentNode: null,
+    childIndex: 0,
+    helpers: new Set(),
+    nodeTransforms: options.nodeTransforms || [],
+
+    helper(name) {
+      context.helpers.add(name);
+      return name;
+    },
+
+    replaceNode(node) {
+      if (context.parent) {
+        const children = (context.parent as ElementNode).children;
+        children[context.childIndex] = node;
+        context.currentNode = node;
+      }
+    },
+
+    removeNode() {
+      if (context.parent) {
+        const children = (context.parent as ElementNode).children;
+        children.splice(context.childIndex, 1);
+        context.currentNode = null;
+      }
+    },
+  };
+
+  return context;
+}
+
+/**
+ * 遍历函数
+ * 核心遍历逻辑：深度优先 + 退出回调
+ */
+export function transform(
+  root: RootNode,
+  options: { nodeTransforms?: NodeTransform[] } = {}
+) {
+  const context = createTransformContext(root, options);
+
+  // 遍历 AST
+  traverseNode(root, context);
+
+  // 创建根节点的 codegenNode
+  createRootCodegen(root);
+
+  // 把收集的 helpers 挂到 root 上
+  root.helpers = context.helpers;
+}
+
+function traverseNode(
+  node: RootNode | TemplateChildNode,
+  context: TransformContext
+) {
+  context.currentNode = node;
+
+  const { nodeTransforms } = context;
+  const exitFns: (() => void)[] = [];
+
+  // 1. 进入阶段：执行所有转换插件，收集退出函数
+  for (const transform of nodeTransforms) {
+    const onExit = transform(node, context);
+    if (onExit) {
+      exitFns.push(onExit);
+    }
+
+    // 节点被删除情况
+    if (!context.currentNode) {
+      return;
+    }
+  }
+
+  // 2. 递归处理子节点
+  switch (node.type) {
+    case NodeTypes.ROOT:
+    case NodeTypes.ELEMENT:
+      traverseChildren(node, context);
+      break;
+    case NodeTypes.INTERPOLATION:
+      // 插值表达式需要 toDisplayString
+      context.helper(TO_DISPLAY_STRING);
+      break;
+  }
+
+  // 3. 退出阶段：倒序执行退出函数
+  // 此时子节点已经处理完毕
+  context.currentNode = node; // 恢复 currentNode（可能被子节点处理改掉了）
+  let i = exitFns.length;
+  while (i--) {
+    exitFns[i]();
+  }
+}
+
+function traverseChildren(
+  parent: RootNode | ElementNode,
+  context: TransformContext
+) {
+  const children = parent.children;
+
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i];
+    context.parent = parent;
+    context.childIndex = i;
+    traverseNode(child, context);
+  }
+}
+
+function createRootCodegen(root: RootNode) {
+  const { children } = root;
+
+  if (children.length === 1) {
+    const child = children[0];
+    // 单个元素节点，直接用它的 codegenNode
+    if (child.type === NodeTypes.ELEMENT && child.codegenNode) {
+      root.codegenNode = child.codegenNode;
+    } else {
+      root.codegenNode = child;
+    }
+  } else if (children.length > 1) {
+    // 多个根节点，需要用 Fragment 包裹
+    // 这里简化处理，后面再完善
+    root.codegenNode = children[0];
+  }
+}

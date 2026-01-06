@@ -67,6 +67,7 @@ export function parse(template: string): RootNode {
   return {
     type: NodeTypes.ROOT,
     children: parseChildren(context, []),
+    helpers: new Set(),
   };
 }
 

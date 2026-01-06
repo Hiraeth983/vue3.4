@@ -8,12 +8,21 @@ export const enum NodeTypes {
   INTERPOLATION, // 插值 {{ xxx }}
   ATTRIBUTE,
   DIRECTIVE, // 指令节点
+  // 用于 codegen 的类型
+  COMPOUND_EXPRESSION, // 复合表达式（文本 + 插值混合）
+  JS_CALL_EXPRESSION, // JS 函数调用 h(...)
+  JS_OBJECT_EXPRESSION, // JS 对象 { ... }
+  JS_PROPERTY, // JS 属性 key: value
+  JS_ARRAY_EXPRESSION, // JS 数组 [ ... ]
+  VNODE_CALL, // createVNode 调用
 }
 
 // 根节点
 export interface RootNode {
   type: NodeTypes.ROOT;
   children: TemplateChildNode[];
+  codegenNode?: CodegenNode;
+  helpers: Set<symbol>; // 需要导入的运行时帮助函数
 }
 
 // 元素节点
@@ -23,6 +32,7 @@ export interface ElementNode {
   props: Array<ElementPropNode>; // 可以是属性或指令
   children: TemplateChildNode[];
   isSelfClosing: boolean; // 是否自闭合
+  codegenNode?: VNodeCall;
 }
 
 // 文本节点
@@ -72,11 +82,51 @@ export interface DirectiveNode {
 // | v-slot:header            | slot  | header | -            | []                 |
 // | #header                  | slot  | header | -            | []                 |
 
+/**
+ * 复合表达式：文本和插值混合
+ * 例如 "hello " + msg + "!"
+ */
+export interface CompoundExpressionNode {
+  type: NodeTypes.COMPOUND_EXPRESSION;
+  children: (TextNode | InterpolationNode | SimpleExpressionNode | string)[];
+}
+
+// VNode 调用节点（给 codegen 用）
+export interface VNodeCall {
+  type: NodeTypes.VNODE_CALL;
+  tag: string | symbol;
+  props: ObjectExpression | undefined;
+  children: TemplateChildNode | TemplateChildNode[] | undefined; // 支持单个节点
+}
+
+// JS 对象表达式 { class: 'red', id: 'app' }
+export interface ObjectExpression {
+  type: NodeTypes.JS_OBJECT_EXPRESSION;
+  properties: Property[];
+}
+
+// JS 属性
+export interface Property {
+  type: NodeTypes.JS_PROPERTY;
+  key: SimpleExpressionNode;
+  value: SimpleExpressionNode;
+}
+
 // 子节点联合类型
-export type TemplateChildNode = ElementNode | TextNode | InterpolationNode;
+export type TemplateChildNode =
+  | ElementNode
+  | TextNode
+  | InterpolationNode
+  | CompoundExpressionNode;
 
 // 表达式联合类型
 export type ExpressionNode = SimpleExpressionNode;
 
 // Element 属性联合类型
 export type ElementPropNode = AttributeNode | DirectiveNode;
+
+// Codegen 节点联合类型
+export type CodegenNode =
+  | TemplateChildNode
+  | VNodeCall
+  | CompoundExpressionNode;
