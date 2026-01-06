@@ -1,0 +1,55 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`codegen > element 1`] = `
+"const { createVNode } = Vue
+
+function render(_ctx) {
+  return createVNode("div")
+}"
+`;
+
+exports[`codegen > element with interpolation 1`] = `
+"const { toDisplayString, createVNode } = Vue
+
+function render(_ctx) {
+  return createVNode("div", toDisplayString(_ctx.msg))
+}"
+`;
+
+exports[`codegen > element with props 1`] = `
+"const { createVNode } = Vue
+
+function render(_ctx) {
+  return createVNode("div", { "id": ""app"", "class": _ctx.cls })
+}"
+`;
+
+exports[`codegen > element with text 1`] = `
+"const { createVNode } = Vue
+
+function render(_ctx) {
+  return createVNode("div", "hello")
+}"
+`;
+
+exports[`codegen > interpolation 1`] = `
+"const { toDisplayString } = Vue
+
+function render(_ctx) {
+  return toDisplayString(_ctx.msg)
+}"
+`;
+
+exports[`codegen > mixed content 1`] = `
+"const { toDisplayString, createVNode } = Vue
+
+function render(_ctx) {
+  return createVNode("div", "hello " + toDisplayString(_ctx.msg) + " world")
+}"
+`;
+
+exports[`codegen > text 1`] = `
+"function render(_ctx) {
+  return "hello"
+}"
+`;

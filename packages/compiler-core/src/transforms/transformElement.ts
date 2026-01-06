@@ -82,18 +82,35 @@ function buildProps(
       // 指令，根据类型分别处理
       if (prop.name === "bind") {
         // v-bind / :xxx
+        // 先判断 arg 是否是 SimpleExpressionNode
+        const argNode = prop.arg;
+        const argContent =
+          argNode.type === NodeTypes.SIMPLE_EXPRESSION
+            ? argNode?.content || ""
+            : "";
+        const argIsStatic =
+          argNode.type === NodeTypes.SIMPLE_EXPRESSION
+            ? argNode?.isStatic ?? true
+            : true;
+
         properties.push({
           type: NodeTypes.JS_PROPERTY,
           key: {
             type: NodeTypes.SIMPLE_EXPRESSION,
-            content: prop.arg?.content || "",
-            isStatic: prop.arg?.isStatic ?? true,
+            content: argContent,
+            isStatic: argIsStatic,
           },
           value: prop.exp!,
         });
       } else if (prop.name === "on") {
         // v-on / @xxx
-        const eventName = "on" + capitalize(prop.arg?.content || "");
+        const argNode = prop.arg;
+        const argContent =
+          argNode.type === NodeTypes.SIMPLE_EXPRESSION
+            ? argNode?.content || ""
+            : "";
+        const eventName = "on" + capitalize(argContent || "");
+
         properties.push({
           type: NodeTypes.JS_PROPERTY,
           key: {

@@ -109,7 +109,7 @@ export interface ObjectExpression {
 export interface Property {
   type: NodeTypes.JS_PROPERTY;
   key: SimpleExpressionNode;
-  value: SimpleExpressionNode;
+  value: ExpressionNode;
 }
 
 // 子节点联合类型
@@ -117,16 +117,13 @@ export type TemplateChildNode =
   | ElementNode
   | TextNode
   | InterpolationNode
-  | CompoundExpressionNode;
+  | ExpressionNode;
 
 // 表达式联合类型
-export type ExpressionNode = SimpleExpressionNode;
+export type ExpressionNode = SimpleExpressionNode | CompoundExpressionNode;
 
 // Element 属性联合类型
 export type ElementPropNode = AttributeNode | DirectiveNode;
 
 // Codegen 节点联合类型
-export type CodegenNode =
-  | TemplateChildNode
-  | VNodeCall
-  | CompoundExpressionNode;
+export type CodegenNode = TemplateChildNode | VNodeCall;

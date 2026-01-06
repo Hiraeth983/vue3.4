@@ -2,7 +2,11 @@ import { NodeTypes } from "@vue/compiler-core";
 import { parse } from "../src/parse";
 import { transform } from "../src/transform";
 import { transformElement } from "../src/transforms/transformElement";
-import { assertElementNode, assertInterpolationNode } from "./test-utils";
+import {
+  assertElementNode,
+  assertInterpolationNode,
+  assertSimpleExpressionNode,
+} from "./test-utils";
 import { transformExpression } from "../src/transforms/transformExpression";
 
 describe("transform", () => {
@@ -29,6 +33,74 @@ describe("transform", () => {
 
     const element = ast.children[0];
     assertInterpolationNode(element);
-    expect(element.content.content).toBe("_ctx.msg");
+    const content = element.content;
+    assertSimpleExpressionNode(content);
+    expect(content.content).toBe("_ctx.msg");
+  });
+});
+
+describe("transformExpression with babel", () => {
+  it("simple identifier", () => {
+    const ast = parse("{{ msg }}");
+    transform(ast, { nodeTransforms: [transformExpression] });
+
+    const node = ast.children[0];
+    assertInterpolationNode(node);
+    assertSimpleExpressionNode(node.content);
+    expect(node.content.content).toBe("_ctx.msg");
+  });
+
+  it("binary expression", () => {
+    const ast = parse("{{ count + 1 }}");
+    transform(ast, { nodeTransforms: [transformExpression] });
+    const node = ast.children[0];
+    assertInterpolationNode(node);
+    assertSimpleExpressionNode(node.content);
+    expect(node.content.content).toBe("_ctx.count + 1");
+  });
+
+  it("member expression", () => {
+    const ast = parse("{{ obj.foo }}");
+    transform(ast, { nodeTransforms: [transformExpression] });
+    const node = ast.children[0];
+    assertInterpolationNode(node);
+    assertSimpleExpressionNode(node.content);
+    expect(node.content.content).toBe("_ctx.obj.foo");
+  });
+
+  it("computed member", () => {
+    const ast = parse("{{ arr[index] }}");
+    transform(ast, { nodeTransforms: [transformExpression] });
+    const node = ast.children[0];
+    assertInterpolationNode(node);
+    assertSimpleExpressionNode(node.content);
+    expect(node.content.content).toBe("_ctx.arr[_ctx.index]");
+  });
+
+  it("function call", () => {
+    const ast = parse("{{ fn(a, b) }}");
+    transform(ast, { nodeTransforms: [transformExpression] });
+    const node = ast.children[0];
+    assertInterpolationNode(node);
+    assertSimpleExpressionNode(node.content);
+    expect(node.content.content).toBe("_ctx.fn(_ctx.a, _ctx.b)");
+  });
+
+  it("global whitelist", () => {
+    const ast = parse("{{ Math.max(a, b) }}");
+    transform(ast, { nodeTransforms: [transformExpression] });
+    const node = ast.children[0];
+    assertInterpolationNode(node);
+    assertSimpleExpressionNode(node.content);
+    expect(node.content.content).toBe("Math.max(_ctx.a, _ctx.b)");
+  });
+
+  it("ternary expression", () => {
+    const ast = parse("{{ ok ? a : b }}");
+    transform(ast, { nodeTransforms: [transformExpression] });
+    const node = ast.children[0];
+    assertInterpolationNode(node);
+    assertSimpleExpressionNode(node.content);
+    expect(node.content.content).toBe("_ctx.ok ? _ctx.a : _ctx.b");
   });
 });

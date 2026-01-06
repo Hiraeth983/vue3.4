@@ -1,3 +1,4 @@
+import { generate } from "./codegen";
 import { parse } from "./parse";
 import { transform } from "./transform";
 import { transformElement } from "./transforms/transformElement";
@@ -17,8 +18,11 @@ export function compile(template: string) {
     ],
   });
 
-  // 3. Codegen（下一步实现）
-  // return generate(ast)
+  // 3. Codegen
+  const { code } = generate(ast);
 
-  return ast;
+  return {
+    ast,
+    code,
+  };
 }
