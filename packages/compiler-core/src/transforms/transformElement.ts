@@ -1,6 +1,8 @@
 import {
+  CodegenNode,
   ElementNode,
   ElementPropNode,
+  getChildCodegenNode,
   NodeTypes,
   ObjectExpression,
   Property,
@@ -32,11 +34,16 @@ export function transformElement(node, context: TransformContext) {
     }
 
     // 3. 处理 children
-    let vnodeChildren: any;
+    let vnodeChildren: CodegenNode | undefined;
     if (children.length === 1) {
-      vnodeChildren = children[0];
+      // 单个子节点，取其 codegenNode
+      vnodeChildren = getChildCodegenNode(children[0]);
     } else if (children.length > 1) {
-      vnodeChildren = children;
+      // 多个子节点包装成 ArrayExpression
+      vnodeChildren = {
+        type: NodeTypes.JS_ARRAY_EXPRESSION,
+        elements: children.map(getChildCodegenNode),
+      };
     }
 
     // 4. 创建 VNodeCall

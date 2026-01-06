@@ -12,7 +12,7 @@ exports[`codegen > element with interpolation 1`] = `
 "const { toDisplayString, createVNode } = Vue
 
 function render(_ctx) {
-  return createVNode("div", toDisplayString(_ctx.msg))
+  return createVNode("div", null, toDisplayString(_ctx.msg))
 }"
 `;
 
@@ -28,7 +28,7 @@ exports[`codegen > element with text 1`] = `
 "const { createVNode } = Vue
 
 function render(_ctx) {
-  return createVNode("div", "hello")
+  return createVNode("div", null, "hello")
 }"
 `;
 
@@ -44,7 +44,7 @@ exports[`codegen > mixed content 1`] = `
 "const { toDisplayString, createVNode } = Vue
 
 function render(_ctx) {
-  return createVNode("div", "hello " + toDisplayString(_ctx.msg) + " world")
+  return createVNode("div", null, "hello " + toDisplayString(_ctx.msg) + " world")
 }"
 `;
 

@@ -1,4 +1,12 @@
-import { ElementNode, NodeTypes, RootNode, TemplateChildNode } from "./ast";
+import {
+  ArrayExpression,
+  CodegenNode,
+  ElementNode,
+  getChildCodegenNode,
+  NodeTypes,
+  RootNode,
+  TemplateChildNode,
+} from "./ast";
 
 /**
  * Transform 阶段概述
@@ -101,7 +109,7 @@ export function transform(
   traverseNode(root, context);
 
   // 创建根节点的 codegenNode
-  createRootCodegen(root);
+  createRootCodegen(root, context);
 
   // 把收集的 helpers 挂到 root 上
   root.helpers = context.helpers;
@@ -164,7 +172,7 @@ function traverseChildren(
   }
 }
 
-function createRootCodegen(root: RootNode) {
+function createRootCodegen(root: RootNode, context: TransformContext) {
   const { children } = root;
 
   if (children.length === 1) {
@@ -173,11 +181,19 @@ function createRootCodegen(root: RootNode) {
     if (child.type === NodeTypes.ELEMENT && child.codegenNode) {
       root.codegenNode = child.codegenNode;
     } else {
-      root.codegenNode = child;
+      root.codegenNode = getChildCodegenNode(child);
     }
   } else if (children.length > 1) {
     // 多个根节点，需要用 Fragment 包裹
-    // 这里简化处理，后面再完善
-    root.codegenNode = children[0];
+    context.helper(CREATE_VNODE);
+    root.codegenNode = {
+      type: NodeTypes.VNODE_CALL,
+      tag: context.helper(FRAGMENT),
+      props: undefined,
+      children: {
+        type: NodeTypes.JS_ARRAY_EXPRESSION,
+        elements: children.map(getChildCodegenNode),
+      } as ArrayExpression,
+    };
   }
 }

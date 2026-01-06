@@ -96,7 +96,7 @@ export interface VNodeCall {
   type: NodeTypes.VNODE_CALL;
   tag: string | symbol;
   props: ObjectExpression | undefined;
-  children: TemplateChildNode | TemplateChildNode[] | undefined; // 支持单个节点
+  children: CodegenNode | undefined;
 }
 
 // JS 对象表达式 { class: 'red', id: 'app' }
@@ -110,6 +110,12 @@ export interface Property {
   type: NodeTypes.JS_PROPERTY;
   key: SimpleExpressionNode;
   value: ExpressionNode;
+}
+
+// JS 数组
+export interface ArrayExpression {
+  type: NodeTypes.JS_ARRAY_EXPRESSION;
+  elements: (CodegenNode | string)[];
 }
 
 // 子节点联合类型
@@ -126,4 +132,19 @@ export type ExpressionNode = SimpleExpressionNode | CompoundExpressionNode;
 export type ElementPropNode = AttributeNode | DirectiveNode;
 
 // Codegen 节点联合类型
-export type CodegenNode = TemplateChildNode | VNodeCall;
+export type CodegenNode =
+  | Exclude<TemplateChildNode, ElementNode>
+  | VNodeCall
+  | ArrayExpression
+  | ObjectExpression;
+
+/**
+ * 获取子节点的 CodegenNode
+ * ElementNode 需要取它的 codegenNode，其他类型直接返回
+ */
+export function getChildCodegenNode(child: TemplateChildNode): CodegenNode {
+  if (child.type === NodeTypes.ELEMENT) {
+    return (child as ElementNode).codegenNode!;
+  }
+  return child as CodegenNode;
+}

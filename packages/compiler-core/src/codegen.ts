@@ -1,18 +1,21 @@
-import { isArray, isString } from "@vue/shared";
+import { isString } from "@vue/shared";
 import {
+  ArrayExpression,
   CodegenNode,
   CompoundExpressionNode,
-  ElementNode,
   InterpolationNode,
   NodeTypes,
   ObjectExpression,
   RootNode,
   SimpleExpressionNode,
-  TemplateChildNode,
   TextNode,
   VNodeCall,
 } from "./ast";
-import { helperNameMap, TO_DISPLAY_STRING } from "./transform";
+import {
+  helperNameMap,
+  TO_DISPLAY_STRING,
+  TransformContext,
+} from "./transform";
 
 // 代码生成上下文
 interface CodegenContext {
@@ -120,9 +123,6 @@ function genFunctionPreamble(ast: RootNode, context: CodegenContext) {
  */
 function genNode(node: CodegenNode, context: CodegenContext) {
   switch (node.type) {
-    case NodeTypes.ELEMENT:
-      genNode((node as ElementNode).codegenNode!, context);
-      break;
     case NodeTypes.VNODE_CALL:
       genVNodeCall(node as VNodeCall, context);
       break;
@@ -137,6 +137,12 @@ function genNode(node: CodegenNode, context: CodegenContext) {
       break;
     case NodeTypes.COMPOUND_EXPRESSION:
       genCompoundExpression(node as CompoundExpressionNode, context);
+      break;
+    case NodeTypes.JS_ARRAY_EXPRESSION:
+      genArrayExpression(node as ArrayExpression, context);
+      break;
+    case NodeTypes.JS_OBJECT_EXPRESSION:
+      genObjectExpression(node as ObjectExpression, context);
       break;
   }
 }
@@ -216,62 +222,26 @@ function genVNodeCall(node: VNodeCall, context: CodegenContext) {
   push("createVNode(");
 
   // 生成参数列表
-  genNodeList([tag, props, children].filter(Boolean) as any[], context);
+  // 单独处理 tag 可能是字符串 '"div"' 或 symbol FRAGMENT
+  if (typeof tag === "symbol") {
+    push(helperNameMap[tag]); // 输出 "Fragment"
+  } else {
+    push(tag); // 输出 '"div"'
+  }
+  // 处理 props
+  if (props) {
+    push(", ");
+    genNode(props, context);
+  } else if (children) {
+    push(", null"); // props 为空，需要占位
+  }
+  // 处理 children
+  if (children) {
+    push(", ");
+    genNode(children, context);
+  }
 
   push(")");
-}
-
-/**
- * 生成参数列表，用逗号分隔
- */
-function genNodeList(
-  nodes: (
-    | string
-    | TemplateChildNode
-    | VNodeCall
-    | ObjectExpression
-    | undefined
-  )[],
-  context: CodegenContext
-) {
-  const { push } = context;
-
-  for (let i = 0; i < nodes.length; i++) {
-    const node = nodes[i];
-
-    if (isString(node)) {
-      // tag 名，直接输出
-      push(node);
-    } else if (isArray(node)) {
-      // children 数组
-      genNodeListAsArray(node, context);
-    } else if (typeof node === "object") {
-      // props 对象或子节点
-      // typeof (null | [] | {}) === "object"
-      if (node.type === NodeTypes.JS_OBJECT_EXPRESSION) {
-        genObjectExpression(node as ObjectExpression, context);
-      } else {
-        genNode(node as TemplateChildNode, context);
-      }
-    }
-
-    // 添加逗号分隔（不是最后一个）
-    if (i < nodes.length - 1) {
-      push(", ");
-    }
-  }
-}
-
-/**
- * 生成数组形式的 children
- */
-function genNodeListAsArray(
-  nodes: TemplateChildNode[],
-  context: CodegenContext
-) {
-  context.push("[");
-  genNodeList(nodes, context);
-  context.push("]");
 }
 
 /**
@@ -304,4 +274,29 @@ function genObjectExpression(node: ObjectExpression, context: CodegenContext) {
   }
 
   push(" }");
+}
+
+/**
+ * genArrayExpression - 数组表达式
+ */
+function genArrayExpression(node: ArrayExpression, context: CodegenContext) {
+  const { push } = context;
+  push("[");
+
+  const { elements } = node;
+  for (let i = 0; i < elements.length; i++) {
+    const element = elements[i];
+
+    if (isString(element)) {
+      push(element);
+    } else {
+      genNode(element, context);
+    }
+
+    if (i < elements.length - 1) {
+      push(", ");
+    }
+  }
+
+  push("]");
 }
