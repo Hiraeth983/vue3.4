@@ -74,7 +74,7 @@ export function transformIf(
       }
 
       const elseIfDir = findDir(sibling, "else-if");
-      const elseDir = findDir(sibling, "elss");
+      const elseDir = findDir(sibling, "else");
 
       if (elseIfDir) {
         // v-else-if 分支

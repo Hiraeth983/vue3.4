@@ -23,7 +23,7 @@ export function transformVHtml(
     name: "bind",
     arg: {
       type: NodeTypes.SIMPLE_EXPRESSION,
-      content: "innerHtml",
+      content: "innerHTML",
       isStatic: true,
     },
     exp: htmlDir.exp,

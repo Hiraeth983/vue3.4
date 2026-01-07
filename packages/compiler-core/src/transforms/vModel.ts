@@ -1,4 +1,9 @@
-import { ElementNode, NodeTypes, TemplateChildNode } from "../ast";
+import {
+  AttributeNode,
+  ElementNode,
+  NodeTypes,
+  TemplateChildNode,
+} from "../ast";
 import { findDir, removeDir, TransformContext } from "../transform";
 
 /**
@@ -69,14 +74,14 @@ export function transformModel(
         exp: {
           type: NodeTypes.SIMPLE_EXPRESSION,
           content: `$event => (${exp} = $event)`,
-          isStatic: true,
+          isStatic: false,
         },
         modifiers: [],
       }
     );
   } else {
     // 原生元素：根据类型处理
-    const { prop, event } = getModelPropAndEvent(tag);
+    const { prop, event } = getModelPropAndEvent(element);
 
     element.props.push(
       // :value="msg" 或 :checked="msg"
@@ -115,13 +120,34 @@ export function transformModel(
   }
 }
 
-function getModelPropAndEvent(tag: string) {
-  if (tag === "input" || tag === "textarea") {
+/**
+ * 如果 type 是动态绑定的（:type="inputType"），编译时无法确定，需要运行时处理。Vue 官方使用 vModelText、vModelCheckbox、vModelRadio 等不同的运行时指令来处理。简易实现可以只支持静态 type
+ */
+function getModelPropAndEvent(element: ElementNode) {
+  const tag = element.tag;
+
+  if (tag === "input") {
+    // 查找 type 属性
+    const typeAttr = element.props.find(
+      (p) => p.type === NodeTypes.ATTRIBUTE && p.name === "type"
+    );
+    const inputType = (typeAttr as AttributeNode)?.value?.content;
+
+    if (inputType === "checkbox" || inputType === "radio") {
+      return { prop: "checked", event: "change" };
+    }
+    // 默认 text/number 等
     return { prop: "value", event: "input" };
   }
+
+  if (tag === "textarea") {
+    return { prop: "value", event: "input" };
+  }
+
   if (tag === "select") {
     return { prop: "value", event: "change" };
   }
-  // checkbox/radio
-  return { prop: "checked", event: "change" };
+
+  // 其他原生元素默认
+  return { prop: "value", event: "input" };
 }

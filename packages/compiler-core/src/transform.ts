@@ -36,11 +36,14 @@ export interface TransformContext {
   childIndex: number; // 当前节点在父节点中的索引
   helpers: Set<symbol>; // 收集用到的运行时函数
   nodeTransforms: NodeTransform[]; // 转换插件列表
+  scopes: Set<string>[]; // 作用域栈，存储局部变量名
 
   // 方法
   helper(name: symbol): symbol; // 添加 helper
   replaceNode(node: TemplateChildNode): void; // 替换当前节点
   removeNode(): void; // 删除当前节点
+  addIdentifiers(ids: string[]): void;
+  removeIdentifiers(ids: string[]): void;
 }
 
 // 运行时帮助函数符号
@@ -76,6 +79,7 @@ function createTransformContext(
     childIndex: 0,
     helpers: new Set(),
     nodeTransforms: options.nodeTransforms || [],
+    scopes: [new Set()],
 
     helper(name) {
       context.helpers.add(name);
@@ -96,6 +100,14 @@ function createTransformContext(
         children.splice(context.childIndex, 1);
         context.currentNode = null;
       }
+    },
+
+    addIdentifiers(ids: string[]) {
+      ids.forEach((id) => context.scopes[context.scopes.length - 1].add(id));
+    },
+
+    removeIdentifiers(ids: string[]) {
+      ids.forEach((id) => context.scopes[context.scopes.length - 1].delete(id));
     },
   };
 
@@ -221,4 +233,11 @@ export function removeDir(node: ElementNode, names: string[]) {
   node.props = node.props.filter(
     (prop) => prop.type !== NodeTypes.DIRECTIVE || !names.includes(prop.name)
   );
+}
+
+/**
+ * 检查标识符是否在作用域中
+ */
+export function isInScope(context: TransformContext, name: string): boolean {
+  return context.scopes.some((scope) => scope.has(name));
 }

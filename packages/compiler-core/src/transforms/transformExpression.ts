@@ -1,5 +1,5 @@
 import { NodeTypes, SimpleExpressionNode } from "./../ast";
-import { TransformContext } from "../transform";
+import { isInScope, TransformContext } from "../transform";
 import { parse } from "@babel/parser";
 import type { Node, Identifier } from "@babel/types";
 
@@ -33,12 +33,12 @@ const GLOBALS_WHITE_LIST = new Set([
 export function transformExpression(node, context: TransformContext) {
   if (node.type === NodeTypes.INTERPOLATION) {
     // 处理插值里的表达式
-    node.content = processExpression(node.content);
+    node.content = processExpression(node.content, context);
   } else if (node.type === NodeTypes.ELEMENT) {
     // 处理指令里的表达式
     for (const prop of node.props) {
       if (prop.type === NodeTypes.DIRECTIVE && prop.exp) {
-        prop.exp = processExpression(prop.exp);
+        prop.exp = processExpression(prop.exp, context);
       }
     }
   }
@@ -53,7 +53,10 @@ export function transformExpression(node, context: TransformContext) {
   1. transformExpression 处理 {{ msg }} → content 变成 _ctx.msg
   2. transformText 合并 "hello " + {{ msg }} → CompoundExpressionNode
  */
-function processExpression(node: SimpleExpressionNode): SimpleExpressionNode {
+function processExpression(
+  node: SimpleExpressionNode,
+  context: TransformContext
+): SimpleExpressionNode {
   const rawExp = node.content.trim();
 
   if (!rawExp) {
@@ -76,7 +79,7 @@ function processExpression(node: SimpleExpressionNode): SimpleExpressionNode {
 
   if (ast.type === "ExpressionStatement") {
     walkIdentifiers(ast.expression, (id, parent) => {
-      if (!GLOBALS_WHITE_LIST.has(id.name)) {
+      if (!GLOBALS_WHITE_LIST.has(id.name) && !isInScope(context, id.name)) {
         identifiers.push({
           name: id.name,
           start: id.start! - 1, // 减 1 是因为我们包了一层括号

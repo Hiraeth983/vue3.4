@@ -1,4 +1,3 @@
-import { Fragment } from "./../../../runtime-core/src/vnode";
 import {
   CREATE_VNODE,
   findDir,
@@ -81,8 +80,18 @@ export function transformFor(
   // 替换原节点
   context.replaceNode(forNode);
 
+  // 收集迭代变量
+  const localVars: string[] = [value];
+  if (key) localVars.push(key);
+
+  // 添加到作用域
+  context.addIdentifiers(localVars);
+
   // 退出函数：生成 codegenNode
   return () => {
+    // 退出时移除作用域
+    context.removeIdentifiers(localVars);
+
     context.helper(CREATE_VNODE);
     context.helper(RENDER_LIST);
     context.helper(FRAGMENT);
@@ -97,7 +106,7 @@ export function transformFor(
 
     forNode.codegenNode = {
       type: NodeTypes.VNODE_CALL,
-      tag: Fragment,
+      tag: FRAGMENT,
       props: undefined,
       children: {
         type: NodeTypes.JS_CALL_EXPRESSION,

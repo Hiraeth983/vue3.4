@@ -92,12 +92,12 @@ function buildProps(
         // 先判断 arg 是否是 SimpleExpressionNode
         const argNode = prop.arg;
         const argContent =
-          argNode.type === NodeTypes.SIMPLE_EXPRESSION
-            ? argNode?.content || ""
+          argNode?.type === NodeTypes.SIMPLE_EXPRESSION
+            ? argNode.content || ""
             : "";
         const argIsStatic =
-          argNode.type === NodeTypes.SIMPLE_EXPRESSION
-            ? argNode?.isStatic ?? true
+          argNode?.type === NodeTypes.SIMPLE_EXPRESSION
+            ? argNode.isStatic ?? true
             : true;
 
         properties.push({
@@ -113,10 +113,10 @@ function buildProps(
         // v-on / @xxx
         const argNode = prop.arg;
         const argContent =
-          argNode.type === NodeTypes.SIMPLE_EXPRESSION
-            ? argNode?.content || ""
+          argNode?.type === NodeTypes.SIMPLE_EXPRESSION
+            ? argNode.content || ""
             : "";
-        const eventName = "on" + capitalize(argContent || "");
+        const eventName = "on" + capitalize(argContent);
 
         properties.push({
           type: NodeTypes.JS_PROPERTY,

@@ -1,10 +1,12 @@
 import {
+  CallExpression,
   ElementNode,
   ExpressionNode,
   InterpolationNode,
   NodeTypes,
   SimpleExpressionNode,
   TemplateChildNode,
+  VNodeCall,
 } from "../src/ast";
 
 export function assertElementNode(
@@ -29,5 +31,13 @@ export function assertSimpleExpressionNode(
 ): asserts node is SimpleExpressionNode {
   if (node.type !== NodeTypes.SIMPLE_EXPRESSION) {
     throw new Error(`Expected SimpleExpressionNode node, got ${node.type}`);
+  }
+}
+
+export function assertVNodeCall(
+  exp: VNodeCall | CallExpression
+): asserts exp is VNodeCall {
+  if (exp.type !== NodeTypes.VNODE_CALL) {
+    throw new Error(`Expected VNodeCall, got ${exp.type}`);
   }
 }

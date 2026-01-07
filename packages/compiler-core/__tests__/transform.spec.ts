@@ -6,6 +6,7 @@ import {
   assertElementNode,
   assertInterpolationNode,
   assertSimpleExpressionNode,
+  assertVNodeCall,
 } from "./test-utils";
 import { transformExpression } from "../src/transforms/transformExpression";
 
@@ -19,6 +20,7 @@ describe("transform", () => {
 
     const element = ast.children[0];
     assertElementNode(element);
+    assertVNodeCall(element.codegenNode);
     expect(element.codegenNode).toBeDefined();
     expect(element.codegenNode.type).toBe(NodeTypes.VNODE_CALL);
     expect(element.codegenNode.tag).toBe('"div"');

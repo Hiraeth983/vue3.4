@@ -6,6 +6,7 @@ import {
 } from "../ast";
 import {
   findDir,
+  removeDir,
   TransformContext,
   V_SHOW,
   WITH_DIRECTIVES,
@@ -27,6 +28,8 @@ export function transformVShow(
   const element = node as ElementNode;
   const showDir = findDir(element, "show");
   if (!showDir) return;
+
+  removeDir(element, ["show"]);
 
   // 在退出时处理，等 codegenNode 生成后包装
   return () => {
