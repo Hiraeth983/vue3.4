@@ -1,4 +1,6 @@
-// 节点类型枚举
+/**
+ * 节点类型枚举
+ */
 export const enum NodeTypes {
   ROOT, // 根节点
   ELEMENT, // 元素 <div>
@@ -15,9 +17,16 @@ export const enum NodeTypes {
   JS_PROPERTY, // JS 属性 key: value
   JS_ARRAY_EXPRESSION, // JS 数组 [ ... ]
   VNODE_CALL, // createVNode 调用
+  IF, // 用于 v-if
+  IF_BRANCH,
+  FOR, // 用于 v-for
+  JS_CONDITIONAL_EXPRESSION, // JS 条件表达式
+  JS_FUNCTION_EXPRESSION, // JS 函数表达式（v-for 回调）
 }
 
-// 根节点
+/**
+ * 根节点
+ */
 export interface RootNode {
   type: NodeTypes.ROOT;
   children: TemplateChildNode[];
@@ -25,43 +34,55 @@ export interface RootNode {
   helpers: Set<symbol>; // 需要导入的运行时帮助函数
 }
 
-// 元素节点
+/**
+ * 元素节点
+ */
 export interface ElementNode {
   type: NodeTypes.ELEMENT;
   tag: string; // 标签名
   props: Array<ElementPropNode>; // 可以是属性或指令
   children: TemplateChildNode[];
   isSelfClosing: boolean; // 是否自闭合
-  codegenNode?: VNodeCall;
+  codegenNode?: VNodeCall | CallExpression;
 }
 
-// 文本节点
+/**
+ * 文本节点
+ */
 export interface TextNode {
   type: NodeTypes.TEXT;
   content: string;
 }
 
-// 插值节点 {{ msg }}
+/**
+ * 插值节点 {{ msg }}
+ */
 export interface InterpolationNode {
   type: NodeTypes.INTERPOLATION;
   content: ExpressionNode; // 里面的表达式
 }
 
-// 表达式节点
+/**
+ * 表达式节点
+ */
 export interface SimpleExpressionNode {
   type: NodeTypes.SIMPLE_EXPRESSION;
   content: string; // 表达式内容，如 "msg"
   isStatic: boolean; // 是否静态（字面量）
 }
 
-// 属性节点（普通属性）
+/**
+ * 属性节点（普通属性）
+ */
 export interface AttributeNode {
   type: NodeTypes.ATTRIBUTE;
   name: string;
   value: TextNode | undefined;
 }
 
-// 指令节点（v-bind、v-on、v-if、v-for 等）
+/**
+ * 指令节点（v-bind、v-on、v-if、v-for 等）
+ */
 export interface DirectiveNode {
   type: NodeTypes.DIRECTIVE;
   name: string; // 指令名：bind、on、if、for、model...
@@ -91,7 +112,9 @@ export interface CompoundExpressionNode {
   children: (TextNode | InterpolationNode | SimpleExpressionNode | string)[];
 }
 
-// VNode 调用节点（给 codegen 用）
+/**
+ * VNode 调用节点（给 codegen 用）
+ */
 export interface VNodeCall {
   type: NodeTypes.VNODE_CALL;
   tag: string | symbol;
@@ -99,52 +122,139 @@ export interface VNodeCall {
   children: CodegenNode | undefined;
 }
 
-// JS 对象表达式 { class: 'red', id: 'app' }
+/**
+ * JS 对象表达式 { class: 'red', id: 'app' }
+ */
 export interface ObjectExpression {
   type: NodeTypes.JS_OBJECT_EXPRESSION;
   properties: Property[];
 }
 
-// JS 属性
+/**
+ * JS 属性
+ */
 export interface Property {
   type: NodeTypes.JS_PROPERTY;
   key: SimpleExpressionNode;
   value: ExpressionNode;
 }
 
-// JS 数组
+/**
+ * JS 数组
+ */
 export interface ArrayExpression {
   type: NodeTypes.JS_ARRAY_EXPRESSION;
   elements: (CodegenNode | string)[];
 }
 
-// 子节点联合类型
+/**
+ * v-if 节点
+ */
+export interface IfNode {
+  type: NodeTypes.IF;
+  branches: IfBranchNode[];
+  codegenNode?: CodegenNode;
+}
+
+/**
+ * v-if 分支
+ */
+export interface IfBranchNode {
+  type: NodeTypes.IF_BRANCH;
+  condition: ExpressionNode | undefined; // v-else 没有条件
+  children: TemplateChildNode[];
+  userKey?: ElementPropNode; // 用户指定的 key
+}
+
+/**
+ * v-for 节点
+ */
+export interface ForNode {
+  type: NodeTypes.FOR;
+  source: ExpressionNode; // 数据源：list
+  valueAlias: ExpressionNode; // 值别名：item
+  keyAlias?: ExpressionNode; // 索引别名：index
+  children: TemplateChildNode[];
+  codegenNode?: CodegenNode;
+}
+
+/**
+ * JS 条件表达式 a ? b : c
+ */
+export interface ConditionalExpression {
+  type: NodeTypes.JS_CONDITIONAL_EXPRESSION;
+  test: ExpressionNode; // a
+  consequent: ExpressionNode; // b
+  alternate: ExpressionNode; // c
+}
+
+/**
+ * JS 函数表达式 (item, index) => { ... }
+ */
+export interface FunctionExpression {
+  type: NodeTypes.JS_FUNCTION_EXPRESSION;
+  params: ExpressionNode[];
+  returns: CodegenNode;
+}
+
+/**
+ * JS 函数调用表达式 createComment() / renderList(...)
+ */
+export interface CallExpression {
+  type: NodeTypes.JS_CALL_EXPRESSION;
+  callee: symbol | string; // 函数名：CREATE_COMMENT / RENDER_LIST
+  arguments: (CodegenNode | ExpressionNode)[]; // 参数列表
+}
+
+/**
+ * 子节点联合类型
+ */
 export type TemplateChildNode =
   | ElementNode
   | TextNode
   | InterpolationNode
-  | ExpressionNode;
+  | ExpressionNode
+  | IfNode
+  | ForNode;
 
-// 表达式联合类型
+/**
+ * 表达式联合类型
+ */
 export type ExpressionNode = SimpleExpressionNode | CompoundExpressionNode;
 
-// Element 属性联合类型
+/**
+ * Element 属性联合类型
+ */
 export type ElementPropNode = AttributeNode | DirectiveNode;
 
-// Codegen 节点联合类型
+/**
+ * Codegen 节点联合类型
+ */
 export type CodegenNode =
-  | Exclude<TemplateChildNode, ElementNode>
+  | Exclude<TemplateChildNode, ElementNode | IfNode | ForNode>
   | VNodeCall
   | ArrayExpression
-  | ObjectExpression;
+  | ObjectExpression
+  | ConditionalExpression
+  | FunctionExpression
+  | CallExpression;
 
 /**
  * 获取子节点的 CodegenNode
- * ElementNode 需要取它的 codegenNode，其他类型直接返回
+ * ElementNode、IfNode、ForNode 需要取它的 codegenNode，其他类型直接返回
  */
 export function getChildCodegenNode(child: TemplateChildNode): CodegenNode {
+  // 处理 ElementNode
   if (child.type === NodeTypes.ELEMENT) {
     return (child as ElementNode).codegenNode!;
+  }
+  // 处理 IfNode
+  if (child.type === NodeTypes.IF) {
+    return (child as IfNode).codegenNode!;
+  }
+  // 处理 ForNode
+  if (child.type === NodeTypes.FOR) {
+    return (child as ForNode).codegenNode!;
   }
   return child as CodegenNode;
 }

@@ -1,8 +1,13 @@
 import { isString } from "@vue/shared";
 import {
   ArrayExpression,
+  CallExpression,
   CodegenNode,
   CompoundExpressionNode,
+  ConditionalExpression,
+  ForNode,
+  FunctionExpression,
+  IfNode,
   InterpolationNode,
   NodeTypes,
   ObjectExpression,
@@ -11,11 +16,7 @@ import {
   TextNode,
   VNodeCall,
 } from "./ast";
-import {
-  helperNameMap,
-  TO_DISPLAY_STRING,
-  TransformContext,
-} from "./transform";
+import { helperNameMap, TO_DISPLAY_STRING } from "./transform";
 
 // 代码生成上下文
 interface CodegenContext {
@@ -143,6 +144,15 @@ function genNode(node: CodegenNode, context: CodegenContext) {
       break;
     case NodeTypes.JS_OBJECT_EXPRESSION:
       genObjectExpression(node as ObjectExpression, context);
+      break;
+    case NodeTypes.JS_CONDITIONAL_EXPRESSION:
+      genConditionalExpression(node as ConditionalExpression, context);
+      break;
+    case NodeTypes.JS_FUNCTION_EXPRESSION:
+      genFunctionExpression(node as FunctionExpression, context);
+      break;
+    case NodeTypes.JS_CALL_EXPRESSION:
+      genCallExpression(node as CallExpression, context);
       break;
   }
 }
@@ -299,4 +309,80 @@ function genArrayExpression(node: ArrayExpression, context: CodegenContext) {
   }
 
   push("]");
+}
+
+/**
+ * 条件表达式 a ? b : c
+ */
+function genConditionalExpression(
+  node: ConditionalExpression,
+  context: CodegenContext
+) {
+  const { test, consequent, alternate } = node;
+  const { push, indent, deindent, newline } = context;
+
+  // test
+  genNode(test, context);
+
+  // ? consequent
+  indent();
+  push("? ");
+  genNode(consequent, context);
+
+  // : alternate
+  newline();
+  push(": ");
+  genNode(alternate, context);
+
+  deindent();
+}
+
+/**
+ * 函数表达式 (item, index) => { return ... }
+ */
+function genFunctionExpression(
+  node: FunctionExpression,
+  context: CodegenContext
+) {
+  const { push } = context;
+  const { params, returns } = node;
+
+  // (item, index) =>
+  push("(");
+  for (let i = 0; i < params.length; i++) {
+    genNode(params[i], context);
+    if (i < params.length - 1) push(", ");
+  }
+  push(") => ");
+
+  // return body
+  genNode(returns, context);
+}
+
+/**
+ * 函数调用 renderList(source, callback)
+ */
+function genCallExpression(node: CallExpression, context: CodegenContext) {
+  const { push } = context;
+  const { callee, arguments: args } = node;
+
+  // 函数名
+  if (typeof callee === "symbol") {
+    push(helperNameMap[callee]);
+  } else {
+    push(callee);
+  }
+
+  // 参数
+  push("(");
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (typeof arg === "string") {
+      push(arg);
+    } else {
+      genNode(arg, context);
+    }
+    if (i < args.length - 1) push(", ");
+  }
+  push(")");
 }

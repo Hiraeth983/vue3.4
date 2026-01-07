@@ -1,6 +1,7 @@
 import {
   ArrayExpression,
   CodegenNode,
+  DirectiveNode,
   ElementNode,
   getChildCodegenNode,
   NodeTypes,
@@ -45,17 +46,23 @@ export interface TransformContext {
 // 运行时帮助函数符号
 export const CREATE_VNODE = Symbol("createVNode");
 export const TO_DISPLAY_STRING = Symbol("toDisplayString");
+export const FRAGMENT = Symbol("Fragment");
 export const RENDER_LIST = Symbol("renderList");
 export const CREATE_COMMENT = Symbol("createComment");
-export const FRAGMENT = Symbol("Fragment");
+export const WITH_DIRECTIVES = Symbol("withDirectives");
+export const V_SHOW = Symbol("vShow");
+export const V_MODEL_TEXT = Symbol("vModelText");
 
 // 符号到函数名的映射
 export const helperNameMap: Record<symbol, string> = {
   [CREATE_VNODE]: "createVNode",
   [TO_DISPLAY_STRING]: "toDisplayString",
+  [FRAGMENT]: "Fragment",
   [RENDER_LIST]: "renderList",
   [CREATE_COMMENT]: "createComment",
-  [FRAGMENT]: "Fragment",
+  [WITH_DIRECTIVES]: "withDirectives",
+  [V_SHOW]: "vShow",
+  [V_MODEL_TEXT]: "vModelText",
 };
 
 function createTransformContext(
@@ -196,4 +203,22 @@ function createRootCodegen(root: RootNode, context: TransformContext) {
       } as ArrayExpression,
     };
   }
+}
+
+/**
+ * 查询 node 上指定 name 的 DirectiveNode
+ */
+export function findDir(node: ElementNode, name: string) {
+  return node.props.find(
+    (prop) => prop.type === NodeTypes.DIRECTIVE && prop.name === name
+  ) as any;
+}
+
+/**
+ * 移除 node 上指定 names 的 DirectiveNode
+ */
+export function removeDir(node: ElementNode, names: string[]) {
+  node.props = node.props.filter(
+    (prop) => prop.type !== NodeTypes.DIRECTIVE || !names.includes(prop.name)
+  );
 }
