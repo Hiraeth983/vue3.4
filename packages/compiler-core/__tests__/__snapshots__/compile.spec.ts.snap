@@ -1,0 +1,29 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`compiler-core 综合测试 > 快照测试 > 多根节点快照 1`] = `
+"const { createVNode, Fragment } = Vue
+
+function render(_ctx) {
+  return createVNode(Fragment, null, [createVNode("span", null, "a"), createVNode("span", null, "b")])
+}"
+`;
+
+exports[`compiler-core 综合测试 > 快照测试 > 嵌套模板快照 1`] = `
+"const { toDisplayString, createVNode, Fragment } = Vue
+
+function render(_ctx) {
+  return createVNode(Fragment, null, ["
+        ", createVNode("div", { "class": _ctx.cls }, ["
+          ", createVNode("span", null, "hello " + toDisplayString(_ctx.name)), "
+        "]), "
+      "])
+}"
+`;
+
+exports[`compiler-core 综合测试 > 快照测试 > 简单模板快照 1`] = `
+"const { toDisplayString, createVNode } = Vue
+
+function render(_ctx) {
+  return createVNode("div", { "id": ""app"" }, toDisplayString(_ctx.msg))
+}"
+`;

@@ -9,7 +9,7 @@
     h('div', null, 'text', h('span')) // type + null + 多个children
  */
 import { isArray, isObject } from "@vue/shared";
-import { createVnode, isVnode } from "./vnode";
+import { createVNode, isVnode } from "./vnode";
 
 export function h(type, propsOrChildren?, children?) {
   const argsLen = arguments.length;
@@ -21,13 +21,13 @@ export function h(type, propsOrChildren?, children?) {
       // 判断是不是 vnode
       if (isVnode(propsOrChildren)) {
         // 单个 vnode 子节点，包成数组
-        return createVnode(type, null, [propsOrChildren]);
+        return createVNode(type, null, [propsOrChildren]);
       }
       // 普通对象视为 props，无 children
-      return createVnode(type, propsOrChildren);
+      return createVNode(type, propsOrChildren);
     } else {
       // 数组或基础类型，视为 children
-      return createVnode(type, null, propsOrChildren);
+      return createVNode(type, null, propsOrChildren);
     }
   } else {
     // 参数 >= 3，第二个是 props
@@ -37,6 +37,6 @@ export function h(type, propsOrChildren?, children?) {
       // 单个 vnode children，包数组
       children = [children];
     }
-    return createVnode(type, propsOrChildren, children);
+    return createVNode(type, propsOrChildren, children);
   }
 }
