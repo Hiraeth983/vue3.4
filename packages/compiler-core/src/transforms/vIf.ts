@@ -1,6 +1,8 @@
 import {
+  CodegenNode,
   ConditionalExpression,
   ElementNode,
+  ForNode,
   IfBranchNode,
   IfNode,
   NodeTypes,
@@ -40,6 +42,9 @@ export function transformIf(
   node: TemplateChildNode,
   context: TransformContext
 ) {
+  // 如果当前节点已被其他 transform 替换，跳过
+  if (context.currentNode !== node) return;
+
   // 只处理带 v-if 的元素
   if (node.type !== NodeTypes.ELEMENT) return;
 
@@ -137,12 +142,24 @@ function createCodegenNodeForBranches(
   }
 }
 
-function getBranchCodegenNode(branch: IfBranchNode, context: TransformContext) {
+function getBranchCodegenNode(
+  branch: IfBranchNode,
+  context: TransformContext
+): CodegenNode {
   const child = branch.children[0];
+  // 处理 ElementNode
   if (child.type === NodeTypes.ELEMENT) {
-    return child.codegenNode;
+    return (child as ElementNode).codegenNode!;
   }
-  return child;
+  // 处理 IfNode
+  if (child.type === NodeTypes.IF) {
+    return (child as IfNode).codegenNode!;
+  }
+  // 处理 ForNode
+  if (child.type === NodeTypes.FOR) {
+    return (child as ForNode).codegenNode!;
+  }
+  return child as CodegenNode;
 }
 
 function createCommentVNode(context: TransformContext) {

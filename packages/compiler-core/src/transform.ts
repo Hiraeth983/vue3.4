@@ -157,14 +157,33 @@ function traverseNode(
   }
 
   // 2. 递归处理子节点
-  switch (node.type) {
+  const currentNode = context.currentNode!; // 用当前节点，可能已被替换
+  switch (currentNode.type) {
     case NodeTypes.ROOT:
     case NodeTypes.ELEMENT:
-      traverseChildren(node, context);
+      traverseChildren(currentNode, context);
       break;
     case NodeTypes.INTERPOLATION:
       // 插值表达式需要 toDisplayString
       context.helper(TO_DISPLAY_STRING);
+      break;
+    case NodeTypes.IF:
+      // 遍历每个分支的 children
+      for (const branch of currentNode.branches) {
+        for (let i = 0; i < branch.children.length; i++) {
+          context.parent = branch;
+          context.childIndex = i;
+          traverseNode(branch.children[i], context);
+        }
+      }
+      break;
+    case NodeTypes.FOR:
+      // 遍历 v-for 的 children
+      for (let i = 0; i < currentNode.children.length; i++) {
+        context.parent = currentNode;
+        context.childIndex = i;
+        traverseNode(currentNode.children[i], context);
+      }
       break;
   }
 

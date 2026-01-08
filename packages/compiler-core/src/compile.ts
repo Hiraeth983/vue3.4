@@ -29,12 +29,12 @@ export function compile(template: string) {
       // 表达式处理
       transformExpression,
 
+      // 运行时指令
+      transformVShow,
+
       // 元素转换
       transformElement,
       transformText,
-
-      // 运行时指令（最后）
-      transformVShow,
     ],
   });
 

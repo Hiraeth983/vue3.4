@@ -215,7 +215,8 @@ export type TemplateChildNode =
   | InterpolationNode
   | ExpressionNode
   | IfNode
-  | ForNode;
+  | ForNode
+  | IfBranchNode;
 
 /**
  * 表达式联合类型

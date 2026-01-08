@@ -1,0 +1,47 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`指令系统测试 > v-for 列表渲染 > v-for 访问 item 属性 1`] = `
+"const { toDisplayString, createVNode, renderList, Fragment } = Vue
+
+function render(_ctx) {
+  return createVNode(Fragment, null, renderList(_ctx.users, (user) => createVNode("div", null, toDisplayString(user.name))))
+}"
+`;
+
+exports[`指令系统测试 > 快照测试 > v-for 快照 1`] = `
+"const { toDisplayString, createVNode, renderList, Fragment } = Vue
+
+function render(_ctx) {
+  return createVNode(Fragment, null, renderList(_ctx.list, (item, index) => createVNode("li", { "key": item.id }, toDisplayString(index) + ": " + toDisplayString(item.name))))
+}"
+`;
+
+exports[`指令系统测试 > 快照测试 > v-if 快照 1`] = `
+"const { createVNode, Fragment } = Vue
+
+function render(_ctx) {
+  return createVNode(Fragment, null, ["
+        ", _ctx.show
+    ? createVNode("div", null, "visible")
+    : createVNode("div", null, "hidden")
+  , "
+        " + "
+      "])
+}"
+`;
+
+exports[`指令系统测试 > 快照测试 > v-model 快照 1`] = `
+"const { createVNode } = Vue
+
+function render(_ctx) {
+  return createVNode("input", { "value": _ctx.username, "onInput": $event => (username = $event.target.value) })
+}"
+`;
+
+exports[`指令系统测试 > 快照测试 > v-show 快照 1`] = `
+"const { createVNode, withDirectives, vShow } = Vue
+
+function render(_ctx) {
+  return withDirectives(createVNode("div", null, "content"), [[vShow, _ctx.active]])
+}"
+`;

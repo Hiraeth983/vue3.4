@@ -1,4 +1,10 @@
-import { NodeTypes, SimpleExpressionNode } from "./../ast";
+import {
+  ExpressionNode,
+  InterpolationNode,
+  NodeTypes,
+  SimpleExpressionNode,
+  TemplateChildNode,
+} from "./../ast";
 import { isInScope, TransformContext } from "../transform";
 import { parse } from "@babel/parser";
 import type { Node, Identifier } from "@babel/types";
@@ -30,17 +36,32 @@ const GLOBALS_WHITE_LIST = new Set([
  * transformExpression 插件
  * 职责：给表达式加上 _ctx. 前缀
  */
-export function transformExpression(node, context: TransformContext) {
-  if (node.type === NodeTypes.INTERPOLATION) {
+export function transformExpression(
+  node: TemplateChildNode,
+  context: TransformContext
+) {
+  const currentNode = context.currentNode || node;
+
+  if (currentNode.type === NodeTypes.INTERPOLATION) {
     // 处理插值里的表达式
-    node.content = processExpression(node.content, context);
-  } else if (node.type === NodeTypes.ELEMENT) {
+    currentNode.content = processExpression(currentNode.content, context);
+  } else if (currentNode.type === NodeTypes.ELEMENT) {
     // 处理指令里的表达式
-    for (const prop of node.props) {
+    for (const prop of currentNode.props) {
       if (prop.type === NodeTypes.DIRECTIVE && prop.exp) {
         prop.exp = processExpression(prop.exp, context);
       }
     }
+  } else if (currentNode.type === NodeTypes.IF) {
+    // 处理 v-if/v-else-if 里的表达式
+    for (const branch of currentNode.branches) {
+      if (branch.condition) {
+        branch.condition = processExpression(branch.condition, context);
+      }
+    }
+  } else if (currentNode.type === NodeTypes.FOR) {
+    // 处理 v-for 的 source 表达式（如 list in "item in list"）
+    currentNode.source = processExpression(currentNode.source, context);
   }
 }
 
@@ -54,13 +75,16 @@ export function transformExpression(node, context: TransformContext) {
   2. transformText 合并 "hello " + {{ msg }} → CompoundExpressionNode
  */
 function processExpression(
-  node: SimpleExpressionNode,
+  node: ExpressionNode,
   context: TransformContext
 ): SimpleExpressionNode {
-  const rawExp = node.content.trim();
+  if (node.type !== NodeTypes.SIMPLE_EXPRESSION) return;
+
+  const element = node as SimpleExpressionNode;
+  const rawExp = element.content.trim();
 
   if (!rawExp) {
-    return node;
+    return element;
   }
 
   // 解析表达式
@@ -71,7 +95,7 @@ function processExpression(
     }).program.body[0];
   } catch (e) {
     console.warn(`[Vue compiler] Failed to parse expression: ${rawExp}`);
-    return node;
+    return element;
   }
 
   // 收集标识符及其位置
@@ -98,7 +122,7 @@ function processExpression(
   }
 
   return {
-    ...node,
+    ...element,
     content: result,
   };
 }
