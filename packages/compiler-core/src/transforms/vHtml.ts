@@ -8,6 +8,9 @@ export function transformVHtml(
   node: TemplateChildNode,
   context: TransformContext
 ) {
+  // 如果当前节点已被其他 transform 替换，跳过
+  if (context.currentNode !== node) return;
+
   if (node.type !== NodeTypes.ELEMENT) return;
 
   const element = node as ElementNode;
@@ -41,6 +44,9 @@ export function transformVText(
   node: TemplateChildNode,
   context: TransformContext
 ) {
+  // 如果当前节点已被其他 transform 替换，跳过
+  if (context.currentNode !== node) return;
+
   if (node.type !== NodeTypes.ELEMENT) return;
 
   const element = node as ElementNode;
