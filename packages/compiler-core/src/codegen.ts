@@ -1,4 +1,4 @@
-import { isString } from "@vue/shared";
+import { isString, PatchFlagNames } from "@vue/shared";
 import {
   ArrayExpression,
   CallExpression,
@@ -283,7 +283,14 @@ function genVNodeCall(node: VNodeCall, context: CodegenContext) {
   }
   // patchFlag
   if (patchFlag !== undefined) {
-    push(`, ${patchFlag}`);
+    // 生成带注释的 patchFlag，如：1 /* TEXT */
+    const flagNames = Object.keys(PatchFlagNames)
+      .map(Number)
+      .filter(n => n > 0 && patchFlag & n)  // 位运算匹配
+      .map(n => PatchFlagNames[n])
+      .join(', ');
+
+    push(`, ${patchFlag} /* ${flagNames} */`);
   }
   // dynamicProps
   if (dynamicProps && dynamicProps.length > 0) {

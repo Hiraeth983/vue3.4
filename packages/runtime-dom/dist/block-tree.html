@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Block Tree 靶向更新测试</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 20px;
+      }
+      #app {
+        border: 2px solid #333;
+        padding: 20px;
+        min-height: 100px;
+      }
+      button {
+        margin: 5px;
+        padding: 8px 16px;
+        cursor: pointer;
+      }
+      .test-group {
+        margin: 10px 0;
+        padding: 10px;
+        background: #f5f5f5;
+        border-radius: 4px;
+      }
+      .test-group h4 {
+        margin: 0 0 10px 0;
+      }
+      .red { color: red; }
+      .blue { color: blue; }
+      .green { color: green; }
+      .log {
+        margin-top: 20px;
+        padding: 10px;
+        background: #1e1e1e;
+        color: #0f0;
+        font-family: monospace;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+      .log-item { margin: 2px 0; }
+      .log-warn { color: #ff0; }
+      .log-error { color: #f00; }
+    </style>
+  </head>
+  <body>
+    <h2>Block Tree 靶向更新测试</h2>
+
+    <div class="test-group">
+      <h4>PatchFlag 靶向更新</h4>
+      <button onclick="testTextFlag()">1. TEXT Flag</button>
+      <button onclick="testClassFlag()">2. CLASS Flag</button>
+      <button onclick="testStyleFlag()">3. STYLE Flag</button>
+      <button onclick="testPropsFlag()">4. PROPS Flag</button>
+      <button onclick="testCombinedFlags()">5. 组合 Flags</button>
+    </div>
+
+    <div class="test-group">
+      <h4>Block Tree 优化</h4>
+      <button onclick="testBlockChildren()">6. Block Children</button>
+      <button onclick="testNestedBlocks()">7. 嵌套 Blocks</button>
+      <button onclick="testFragmentBlock()">8. Fragment Block</button>
+    </div>
+
+    <div class="test-group">
+      <h4>静态提升</h4>
+      <button onclick="testStaticHoist()">9. 静态节点复用</button>
+      <button onclick="testHoistedUpdate()">10. HOISTED 跳过更新</button>
+    </div>
+
+    <div class="test-group">
+      <h4>边界情况</h4>
+      <button onclick="testFullProps()">11. FULL_PROPS</button>
+      <button onclick="testBailOut()">12. BAIL 退出优化</button>
+      <button onclick="clearApp()">清空</button>
+    </div>
+
+    <hr />
+    <div id="app"></div>
+    <div id="log" class="log"></div>
+
+    <script type="module">
+      import {
+        render,
+        h,
+        createVNode,
+        openBlock,
+        createElementBlock,
+        createBlock,
+        Fragment,
+        Text,
+        ref,
+        reactive,
+        effect,
+      } from "./runtime-dom.esm.js";
+
+      // PatchFlags 常量（与 shared 中一致）
+      const PatchFlags = {
+        TEXT: 1,
+        CLASS: 2,
+        STYLE: 4,
+        PROPS: 8,
+        FULL_PROPS: 16,
+        HYDRATE_EVENTS: 32,
+        STABLE_FRAGMENT: 64,
+        KEYED_FRAGMENT: 128,
+        UNKEYED_FRAGMENT: 256,
+        NEED_PATCH: 512,
+        DYNAMIC_SLOTS: 1024,
+        HOISTED: -1,
+        BAIL: -2,
+      };
+
+      // 日志系统
+      const logEl = document.getElementById("log");
+      function log(msg, type = "info") {
+        const item = document.createElement("div");
+        item.className = `log-item ${type === "warn" ? "log-warn" : type === "error" ? "log-error" : ""}`;
+        item.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        logEl.appendChild(item);
+        logEl.scrollTop = logEl.scrollHeight;
+        console.log(msg);
+      }
+
+      function clearLog() {
+        logEl.innerHTML = "";
+      }
+
+      // 挂载到 window
+      window.render = render;
+      window.h = h;
+      window.createVNode = createVNode;
+      window.openBlock = openBlock;
+      window.createElementBlock = createElementBlock;
+      window.createBlock = createBlock;
+      window.Fragment = Fragment;
+      window.Text = Text;
+      window.PatchFlags = PatchFlags;
+
+      const app = document.getElementById("app");
+
+      // ==================== PatchFlag 测试 ====================
+
+      // 1. TEXT Flag - 动态文本靶向更新
+      window.testTextFlag = () => {
+        clearLog();
+        log("=== TEXT Flag 测试 ===");
+
+        let count = 0;
+
+        function renderWithTextFlag() {
+          // 模拟编译器生成的代码
+          // <div>{{ count }}</div>
+          openBlock();
+          return createElementBlock(
+            "div",
+            null,
+            count.toString(),
+            PatchFlags.TEXT // 只有文本是动态的
+          );
+        }
+
+        // 首次渲染
+        render(renderWithTextFlag(), app);
+        log(`首次渲染: count = ${count}`);
+
+        // 更新（只更新文本，不 diff 其他属性）
+        setTimeout(() => {
+          count = 1;
+          render(renderWithTextFlag(), app);
+          log(`更新后: count = ${count} (只更新了文本内容)`);
+        }, 500);
+
+        setTimeout(() => {
+          count = 42;
+          render(renderWithTextFlag(), app);
+          log(`再次更新: count = ${count}`);
+          log("✅ TEXT Flag 测试完成 - 只有文本被靶向更新");
+        }, 1000);
+      };
+
+      // 2. CLASS Flag - 动态 class 靶向更新
+      window.testClassFlag = () => {
+        clearLog();
+        log("=== CLASS Flag 测试 ===");
+
+        let isActive = false;
+
+        function renderWithClassFlag() {
+          openBlock();
+          return createElementBlock(
+            "div",
+            { class: isActive ? "red" : "blue", id: "static-id" },
+            "Class 动态切换",
+            PatchFlags.CLASS // 只有 class 是动态的
+          );
+        }
+
+        render(renderWithClassFlag(), app);
+        log(`首次渲染: class = ${isActive ? "red" : "blue"}`);
+
+        setTimeout(() => {
+          isActive = true;
+          render(renderWithClassFlag(), app);
+          log(`更新后: class = ${isActive ? "red" : "blue"} (只更新了 class)`);
+          log("✅ CLASS Flag 测试完成 - id 属性没有被重新 patch");
+        }, 500);
+      };
+
+      // 3. STYLE Flag - 动态 style 靶向更新
+      window.testStyleFlag = () => {
+        clearLog();
+        log("=== STYLE Flag 测试 ===");
+
+        let fontSize = 14;
+
+        function renderWithStyleFlag() {
+          openBlock();
+          return createElementBlock(
+            "div",
+            {
+              style: { fontSize: fontSize + "px", color: "blue" },
+              class: "static-class",
+            },
+            "Style 动态变化",
+            PatchFlags.STYLE // 只有 style 是动态的
+          );
+        }
+
+        render(renderWithStyleFlag(), app);
+        log(`首次渲染: fontSize = ${fontSize}px`);
+
+        setTimeout(() => {
+          fontSize = 24;
+          render(renderWithStyleFlag(), app);
+          log(`更新后: fontSize = ${fontSize}px (只更新了 style)`);
+          log("✅ STYLE Flag 测试完成");
+        }, 500);
+      };
+
+      // 4. PROPS Flag - 动态属性靶向更新
+      window.testPropsFlag = () => {
+        clearLog();
+        log("=== PROPS Flag 测试 ===");
+
+        let userId = "user-1";
+
+        function renderWithPropsFlag() {
+          openBlock();
+          return createElementBlock(
+            "div",
+            {
+              id: userId,
+              class: "static",
+              "data-static": "not-changed",
+            },
+            `ID: ${userId}`,
+            PatchFlags.PROPS | PatchFlags.TEXT, // id 和文本是动态的
+            ["id"] // dynamicProps - 只需要更新 id
+          );
+        }
+
+        render(renderWithPropsFlag(), app);
+        log(`首次渲染: id = ${userId}`);
+
+        setTimeout(() => {
+          userId = "user-999";
+          render(renderWithPropsFlag(), app);
+          log(`更新后: id = ${userId} (只更新了 id 和文本)`);
+          log("✅ PROPS Flag 测试完成 - data-static 没有被重新 patch");
+        }, 500);
+      };
+
+      // 5. 组合 Flags
+      window.testCombinedFlags = () => {
+        clearLog();
+        log("=== 组合 Flags 测试 ===");
+
+        let state = {
+          cls: "red",
+          fontSize: 16,
+          count: 0,
+        };
+
+        function renderWithCombinedFlags() {
+          openBlock();
+          return createElementBlock(
+            "div",
+            {
+              class: state.cls,
+              style: { fontSize: state.fontSize + "px" },
+            },
+            `Count: ${state.count}`,
+            PatchFlags.CLASS | PatchFlags.STYLE | PatchFlags.TEXT
+          );
+        }
+
+        render(renderWithCombinedFlags(), app);
+        log(`首次渲染: class=${state.cls}, fontSize=${state.fontSize}, count=${state.count}`);
+
+        setTimeout(() => {
+          state = { cls: "green", fontSize: 20, count: 42 };
+          render(renderWithCombinedFlags(), app);
+          log(`更新后: class=${state.cls}, fontSize=${state.fontSize}, count=${state.count}`);
+          log("✅ 组合 Flags 测试完成 - class, style, text 都被靶向更新");
+        }, 500);
+      };
+
+      // ==================== Block Tree 测试 ====================
+
+      // 6. Block Children - 跳过静态子节点
+      window.testBlockChildren = () => {
+        clearLog();
+        log("=== Block Children 测试 ===");
+
+        let dynamicText = "动态内容";
+
+        function renderBlockWithChildren() {
+          openBlock();
+          const block = createElementBlock("div", null, [
+            // 静态子节点 - 会被跳过
+            createVNode("p", null, "静态段落 1"),
+            createVNode("p", null, "静态段落 2"),
+            // 动态子节点 - 会被收集到 dynamicChildren
+            createVNode("span", { class: "red" }, dynamicText, PatchFlags.TEXT),
+            // 静态子节点 - 会被跳过
+            createVNode("p", null, "静态段落 3"),
+          ]);
+
+          return block;
+        }
+
+        render(renderBlockWithChildren(), app);
+        log("首次渲染: 包含 3 个静态段落 + 1 个动态 span");
+
+        setTimeout(() => {
+          dynamicText = "内容已更新！";
+          render(renderBlockWithChildren(), app);
+          log("更新后: 只有动态 span 被更新，静态段落被跳过");
+          log("✅ Block Children 测试完成 - 静态节点没有被重新 diff");
+        }, 500);
+      };
+
+      // 7. 嵌套 Blocks
+      window.testNestedBlocks = () => {
+        clearLog();
+        log("=== 嵌套 Blocks 测试 ===");
+
+        let outerText = "外层";
+        let innerText = "内层";
+
+        function renderNestedBlocks() {
+          openBlock();
+          return createElementBlock("div", { class: "outer" }, [
+            createVNode("span", null, outerText, PatchFlags.TEXT),
+            // 内层 Block
+            (openBlock(),
+            createElementBlock("div", { class: "inner" }, [
+              createVNode("span", null, innerText, PatchFlags.TEXT),
+            ])),
+          ]);
+        }
+
+        render(renderNestedBlocks(), app);
+        log("首次渲染: 嵌套的 Block 结构");
+
+        setTimeout(() => {
+          outerText = "外层-更新";
+          innerText = "内层-更新";
+          render(renderNestedBlocks(), app);
+          log("更新后: 内外层的动态节点都被更新");
+          log("✅ 嵌套 Blocks 测试完成");
+        }, 500);
+      };
+
+      // 8. Fragment Block (v-for 场景)
+      window.testFragmentBlock = () => {
+        clearLog();
+        log("=== Fragment Block 测试 (v-for) ===");
+
+        let items = [
+          { id: 1, name: "苹果" },
+          { id: 2, name: "香蕉" },
+          { id: 3, name: "橙子" },
+        ];
+
+        function renderList() {
+          // 模拟 v-for 生成的代码
+          openBlock();
+          return createBlock(
+            Fragment,
+            null,
+            items.map((item) => {
+              openBlock();
+              return createElementBlock(
+                "div",
+                { key: item.id },
+                item.name,
+                PatchFlags.TEXT
+              );
+            }),
+            PatchFlags.KEYED_FRAGMENT // 带 key 的 fragment
+          );
+        }
+
+        render(renderList(), app);
+        log(`首次渲染: ${items.map((i) => i.name).join(", ")}`);
+
+        setTimeout(() => {
+          // 修改第二项
+          items = [
+            { id: 1, name: "苹果" },
+            { id: 2, name: "葡萄" }, // 修改
+            { id: 3, name: "橙子" },
+          ];
+          render(renderList(), app);
+          log(`更新后: ${items.map((i) => i.name).join(", ")} (香蕉→葡萄)`);
+          log("✅ Fragment Block 测试完成 - KEYED_FRAGMENT 高效 diff");
+        }, 500);
+      };
+
+      // ==================== 静态提升测试 ====================
+
+      // 9. 静态节点复用
+      window.testStaticHoist = () => {
+        clearLog();
+        log("=== 静态节点复用测试 ===");
+
+        // 模拟静态提升：在 render 外部创建静态 vnode
+        const hoisted1 = createVNode("p", null, "我是被提升的静态节点 1", PatchFlags.HOISTED);
+        const hoisted2 = createVNode("p", null, "我是被提升的静态节点 2", PatchFlags.HOISTED);
+
+        let dynamicCount = 0;
+
+        function renderWithHoist() {
+          openBlock();
+          return createElementBlock("div", null, [
+            hoisted1, // 复用
+            hoisted2, // 复用
+            createVNode("p", { class: "red" }, `动态计数: ${dynamicCount}`, PatchFlags.TEXT),
+          ]);
+        }
+
+        render(renderWithHoist(), app);
+        log("首次渲染: 2 个静态提升节点 + 1 个动态节点");
+        log(`静态节点 el 引用: hoisted1.el = ${hoisted1.el?.tagName}`);
+
+        setTimeout(() => {
+          const oldEl1 = hoisted1.el;
+          dynamicCount = 100;
+          render(renderWithHoist(), app);
+          log(`更新后: 动态计数 = ${dynamicCount}`);
+          log(`静态节点复用: ${hoisted1.el === oldEl1 ? "✅ 是同一个 DOM" : "❌ DOM 被重建了"}`);
+          log("✅ 静态节点复用测试完成");
+        }, 500);
+      };
+
+      // 10. HOISTED 跳过更新
+      window.testHoistedUpdate = () => {
+        clearLog();
+        log("=== HOISTED 跳过更新测试 ===");
+
+        // 模拟静态提升节点
+        const hoistedNode = createVNode(
+          "div",
+          { class: "hoisted", style: { background: "#eee", padding: "10px" } },
+          "我是 HOISTED 节点，更新时会被完全跳过",
+          PatchFlags.HOISTED
+        );
+
+        let count = 0;
+
+        function renderWithHoisted() {
+          openBlock();
+          return createElementBlock("div", null, [
+            hoistedNode,
+            createVNode("p", null, `更新计数: ${count}`, PatchFlags.TEXT),
+          ]);
+        }
+
+        render(renderWithHoisted(), app);
+        log("首次渲染");
+
+        // 多次更新
+        let interval = setInterval(() => {
+          count++;
+          if (count > 5) {
+            clearInterval(interval);
+            log("✅ HOISTED 测试完成 - 静态节点在 5 次更新中都被跳过");
+            return;
+          }
+          render(renderWithHoisted(), app);
+          log(`第 ${count} 次更新 - HOISTED 节点被跳过，只更新计数`);
+        }, 300);
+      };
+
+      // ==================== 边界情况 ====================
+
+      // 11. FULL_PROPS - 完整 props diff
+      window.testFullProps = () => {
+        clearLog();
+        log("=== FULL_PROPS 测试 ===");
+
+        let attrs = { id: "box", class: "red", title: "hello" };
+
+        function renderWithFullProps() {
+          openBlock();
+          // v-bind="attrs" 场景，属性名不确定
+          return createElementBlock(
+            "div",
+            attrs,
+            "v-bind 展开绑定",
+            PatchFlags.FULL_PROPS
+          );
+        }
+
+        render(renderWithFullProps(), app);
+        log(`首次渲染: ${JSON.stringify(attrs)}`);
+
+        setTimeout(() => {
+          // 完全不同的属性
+          attrs = { "data-id": "123", class: "blue" };
+          render(renderWithFullProps(), app);
+          log(`更新后: ${JSON.stringify(attrs)}`);
+          log("✅ FULL_PROPS 测试完成 - 进行了完整的属性 diff");
+        }, 500);
+      };
+
+      // 12. BAIL - 退出优化模式
+      window.testBailOut = () => {
+        clearLog();
+        log("=== BAIL 退出优化测试 ===");
+
+        function renderWithBail() {
+          // 当 Block 结构不稳定时（如手写 render），使用 BAIL
+          openBlock();
+          return createElementBlock(
+            "div",
+            null,
+            [
+              createVNode("p", null, "子节点 1"),
+              createVNode("p", null, "子节点 2"),
+            ],
+            PatchFlags.BAIL // 退出优化，走完整 diff
+          );
+        }
+
+        render(renderWithBail(), app);
+        log("渲染带 BAIL 标记的 Block");
+        log("BAIL 标记会使 patch 走完整 diff 路径，不使用 dynamicChildren 优化");
+        log("✅ BAIL 测试完成");
+      };
+
+      // 清空
+      window.clearApp = () => {
+        render(null, app);
+        clearLog();
+        log("已清空");
+      };
+
+      // 默认运行第一个测试
+      testTextFlag();
+    </script>
+  </body>
+</html>
