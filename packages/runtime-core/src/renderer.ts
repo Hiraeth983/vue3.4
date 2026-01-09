@@ -1,5 +1,12 @@
-import { invokeArrayFns, ShapeFlags } from "@vue/shared";
-import { isSameVnode, Text, Fragment, Comment, normalizeVnode } from "./vnode";
+import { invokeArrayFns, PatchFlags, ShapeFlags } from "@vue/shared";
+import {
+  isSameVnode,
+  Text,
+  Fragment,
+  Comment,
+  normalizeVnode,
+  VNode,
+} from "./vnode";
 import { reactive, ReactiveEffect } from "@vue/reactivity";
 import { queueJob, queuePostFlushCb } from "./scheduler";
 import { getSequence } from "./utils/sequence";
@@ -375,6 +382,37 @@ export function createRenderer(renderOptions) {
     }
   };
 
+  const patchUnkeyedChildren = (
+    c1,
+    c2,
+    container,
+    anchor = null,
+    parentComponent = null
+  ) => {
+    const oldLen = c1.length;
+    const newLen = c2.length;
+    const commonLen = Math.min(oldLen, newLen);
+
+    // patch 公共部分
+    for (let i = 0; i < commonLen; i++) {
+      const nextChild = (c2[i] = normalizeVnode(c2[i]));
+      patch(c1[i], nextChild, container, anchor, parentComponent);
+    }
+
+    if (oldLen > newLen) {
+      // 旧的多，卸载
+      for (let i = commonLen; i < oldLen; i++) {
+        unmount(c1[i]);
+      }
+    } else {
+      // 新的多，挂载
+      for (let i = commonLen; i < newLen; i++) {
+        const nextChild = (c2[i] = normalizeVnode(c2[i]));
+        patch(null, nextChild, container, anchor, parentComponent);
+      }
+    }
+  };
+
   const patchChildren = (
     n1,
     n2,
@@ -387,6 +425,20 @@ export function createRenderer(renderOptions) {
     const c2 = n2.children;
     const prevShapeFlag = n1.shapeFlag;
     const shapeFlag = n2.shapeFlag;
+    const { patchFlag } = n2;
+
+    //  Fragment 的 patchFlag 优化
+    if (patchFlag !== undefined && patchFlag > 0) {
+      if (patchFlag & PatchFlags.KEYED_FRAGMENT) {
+        // 带 key 的 fragment，用 keyed diff
+        patchKeyedChildren(c1, c2, container, anchor, parentComponent);
+        return;
+      } else if (patchFlag & PatchFlags.UNKEYED_FRAGMENT) {
+        // 不带 key 的 fragment，用 unkeyed diff（简单遍历）
+        patchUnkeyedChildren(c1, c2, container, anchor, parentComponent);
+        return;
+      }
+    }
 
     // 新 children 是文本
     if (shapeFlag & ShapeFlags.TEXT_CHILDREN) {
@@ -427,12 +479,111 @@ export function createRenderer(renderOptions) {
 
     const oldProps = n1.props || {};
     const newProps = n2.props || {};
+    const { patchFlag, dynamicChildren } = n2;
 
-    // 更新 props
-    patchProps(el, oldProps, newProps);
+    // 根据 patchFlag 靶向更新 props
+    if (patchFlag > 0) {
+      // 存在优化标记
+      if (patchFlag & PatchFlags.FULL_PROPS) {
+        // FULL_PROPS: 需要完整 diff（v-bind="obj" 场景）
+        patchProps(el, oldProps, newProps);
+      } else {
+        // 靶向更新
+
+        // 动态 class
+        if (patchFlag & PatchFlags.CLASS) {
+          if (oldProps.class !== newProps.class) {
+            hostPatchProp(el, "class", null, newProps.class);
+          }
+        }
+
+        // 动态 style
+        if (patchFlag & PatchFlags.STYLE) {
+          hostPatchProp(el, "style", oldProps.style, newProps.style);
+        }
+
+        // 动态 props（非 class/style）
+        if (patchFlag & PatchFlags.PROPS) {
+          // 只更新 dynamicProps 中列出的属性
+          const propsToUpdate = n2.dynamicProps;
+          for (let i = 0; i < propsToUpdate.length; i++) {
+            const key = propsToUpdate[i];
+            const prev = oldProps[key];
+            const next = newProps[key];
+            if (prev !== next) {
+              hostPatchProp(el, key, prev, next);
+            }
+          }
+        }
+      }
+    } else if (
+      patchFlag == null ||
+      patchFlag === 0 ||
+      patchFlag === PatchFlags.BAIL
+    ) {
+      // 无优化标记（手写 render）、0、BAIL → 完整 diff
+      patchProps(el, oldProps, newProps);
+    }
+    // patchFlag < 0 且不是 BAIL 说明是 HOISTED
+    // HOISTED 节点已经在 patch 入口被短路，正常不会走到这里
 
     // 更新 children
-    patchChildren(n1, n2, el, null, parentComponent);
+    if (patchFlag & PatchFlags.TEXT) {
+      // 动态文本
+      if (n1.children !== n2.children) {
+        hostSetElementText(el, n2.children);
+      }
+    } else if (dynamicChildren) {
+      // 优先使用 dynamicChildren（Block 优化）
+      patchBlockChildren(
+        n1.dynamicChildren,
+        dynamicChildren,
+        el,
+        parentComponent
+      );
+    } else {
+      // 没有 dynamicChildren，走完整 diff
+      patchChildren(n1, n2, el, null, parentComponent);
+    }
+  };
+
+  /**
+   * 直接 patch dynamicChildren，跳过静态节点
+   * 前提：Block 结构稳定，新旧 dynamicChildren 数量一致
+   */
+  const patchBlockChildren = (
+    oldChildren: VNode[],
+    newChildren: VNode[],
+    container: any,
+    parentComponent: any
+  ) => {
+    // 检查结构是否稳定
+    if (oldChildren.length !== newChildren.length) {
+      console.warn(
+        "[Vue] Block children length mismatch. This may indicate unstable " +
+          "block structure. Falling back may cause issues.",
+        { old: oldChildren.length, new: newChildren.length }
+      );
+    }
+
+    for (let i = 0; i < newChildren.length; i++) {
+      const oldVNode = oldChildren[i];
+      const newVNode = newChildren[i];
+
+      // 防护：如果旧节点不存在，跳过（理论上不应该发生）
+      if (!oldVNode) {
+        console.warn(`[Vue] Missing old vnode at index ${i} in block children`);
+
+        continue;
+      }
+
+      // 确定 patch 的容器
+      // 动态子节点可能在不同层级，需要找到其实际父元素
+      const parentEl = oldVNode.el && hostParentNode(oldVNode.el);
+      const patchContainer = parentEl || container;
+
+      patch(oldVNode, newVNode, patchContainer, null, parentComponent);
+    }
   };
 
   const patchComponent = (n1, n2) => {
@@ -495,8 +646,18 @@ export function createRenderer(renderOptions) {
       n2.el = n1.el;
       n2.anchor = n1.anchor;
 
-      // 更新：diff children
-      patchChildren(n1, n2, container, n2.anchor, parentComponent);
+      // 优先使用 dynamicChildren
+      if (n2.dynamicChildren) {
+        patchBlockChildren(
+          n1.dynamicChildren!,
+          n2.dynamicChildren,
+          container,
+          parentComponent
+        );
+      } else {
+        // 更新：diff children
+        patchChildren(n1, n2, container, n2.anchor, parentComponent);
+      }
     }
   };
 
@@ -545,6 +706,12 @@ export function createRenderer(renderOptions) {
   // | n2        | 新的 vnode（更新后） | VNode        |
   // | container | 父级 DOM 容器        | HTMLElement  |
   const patch = (n1, n2, container, anchor = null, parentComponent = null) => {
+    // HOISTED 节点：更新时直接复用，跳过 diff
+    if (n1 && n2.patchFlag === PatchFlags.HOISTED) {
+      n2.el = n1.el;
+      return;
+    }
+
     // 1.相同虚拟节点不需要更新
     if (n1 === n2) {
       return;
