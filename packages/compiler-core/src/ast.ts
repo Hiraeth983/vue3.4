@@ -22,6 +22,7 @@ export const enum NodeTypes {
   FOR, // 用于 v-for
   JS_CONDITIONAL_EXPRESSION, // JS 条件表达式
   JS_FUNCTION_EXPRESSION, // JS 函数表达式（v-for 回调）
+  JS_HOISTED,
 }
 
 /**
@@ -32,6 +33,7 @@ export interface RootNode {
   children: TemplateChildNode[];
   codegenNode?: CodegenNode;
   helpers: Set<symbol>; // 需要导入的运行时帮助函数
+  hoists: CodegenNode[];
 }
 
 /**
@@ -120,6 +122,11 @@ export interface VNodeCall {
   tag: string | symbol;
   props: ObjectExpression | undefined;
   children: CodegenNode | undefined;
+
+  // compile optimize
+  patchFlag: number | undefined; // PatchFlag
+  dynamicProps: string[] | undefined; // Dynamic properties list
+  isBlock: boolean;
 }
 
 /**
@@ -207,6 +214,14 @@ export interface CallExpression {
 }
 
 /**
+ * Static hoist
+ */
+export interface HoistedNode {
+  type: NodeTypes.JS_HOISTED;
+  index: number; // index in the hoists array
+}
+
+/**
  * 子节点联合类型
  */
 export type TemplateChildNode =
@@ -238,7 +253,8 @@ export type CodegenNode =
   | ObjectExpression
   | ConditionalExpression
   | FunctionExpression
-  | CallExpression;
+  | CallExpression
+  | HoistedNode;
 
 /**
  * 获取子节点的 CodegenNode

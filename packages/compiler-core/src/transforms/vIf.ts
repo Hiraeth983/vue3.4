@@ -6,11 +6,15 @@ import {
   IfBranchNode,
   IfNode,
   NodeTypes,
+  Property,
   TemplateChildNode,
+  VNodeCall,
 } from "../ast";
 import {
   CREATE_COMMENT,
+  CREATE_ELEMENT_BLOCK,
   findDir,
+  OPEN_BLOCK,
   removeDir,
   TransformContext,
 } from "../transform";
@@ -37,6 +41,11 @@ import {
  *   show ? createVNode("div", null, "A")
  *        : other ? createVNode("div", null, "B")
  *                : createVNode("div", null, "C")
+ *
+ * 生成代码（Block 模式）:
+ *   show ? (openBlock(), createElementBlock("div", { key: 0 }, "A"))
+ *        : other ? (openBlock(), createElementBlock("div", { key: 1 }, "B"))
+ *                : (openBlock(), createElementBlock("div", { key: 2 }, "C"))
  */
 export function transformIf(
   node: TemplateChildNode,
@@ -58,7 +67,7 @@ export function transformIf(
   };
 
   // 第一个分支：v-if
-  const branch = createIfBranch(node, ifDir.exp);
+  const branch = createIfBranch(node, ifDir.exp, 0);
   ifNode.branches.push(branch);
 
   // 替换当前节点
@@ -68,6 +77,7 @@ export function transformIf(
   const parent = context.parent as ElementNode;
   if (parent && parent.children) {
     let i = context.childIndex + 1;
+    let keyIndex = 1;
 
     while (i < parent.children.length) {
       const sibling = parent.children[i] as ElementNode;
@@ -83,11 +93,13 @@ export function transformIf(
 
       if (elseIfDir) {
         // v-else-if 分支
-        ifNode.branches.push(createIfBranch(sibling, elseIfDir.exp));
+        ifNode.branches.push(
+          createIfBranch(sibling, elseIfDir.exp, keyIndex++)
+        );
         parent.children.splice(i, 1);
       } else if (elseDir) {
         // v-else 分支 无条件
-        ifNode.branches.push(createIfBranch(sibling, undefined));
+        ifNode.branches.push(createIfBranch(sibling, undefined, keyIndex++));
         parent.children.splice(i, 1);
         break; // v-else 必须是最后一个
       } else {
@@ -102,7 +114,14 @@ export function transformIf(
   };
 }
 
-function createIfBranch(node: ElementNode, condition: any): IfBranchNode {
+/**
+ * 创建 if 分支，带 key 用于 Block 切换
+ */
+function createIfBranch(
+  node: ElementNode,
+  condition: any,
+  key: number
+): IfBranchNode {
   // 从 props 中移除 v-if/v-else-if/v-else 指令
   removeDir(node, ["if", "else-if", "else"]);
 
@@ -110,12 +129,23 @@ function createIfBranch(node: ElementNode, condition: any): IfBranchNode {
     type: NodeTypes.IF_BRANCH,
     condition,
     children: [node],
+    // 存储 key，用于后续生成 Block
+    userKey: {
+      type: NodeTypes.ATTRIBUTE,
+      name: "key",
+      value: {
+        type: NodeTypes.TEXT,
+        content: String(key),
+      },
+    },
   };
 }
 
 /**
  * 递归生成条件表达式
  * branches[0] ? branch0 : branches[1] ? branch1 : branch2
+ *
+ * branches[0] ? block0 : branches[1] ? block1 : block2
  */
 function createCodegenNodeForBranches(
   branches: IfBranchNode[],
@@ -129,7 +159,7 @@ function createCodegenNodeForBranches(
     return {
       type: NodeTypes.JS_CONDITIONAL_EXPRESSION,
       test: branch.condition,
-      consequent: getBranchCodegenNode(branch, context),
+      consequent: getBranchCodegenNode(branch, index, context),
       alternate:
         index < branches.length - 1
           ? createCodegenNodeForBranches(branches, context, index + 1)
@@ -138,18 +168,37 @@ function createCodegenNodeForBranches(
     } as ConditionalExpression;
   } else {
     // v-else：直接返回
-    return getBranchCodegenNode(branch, context);
+    return getBranchCodegenNode(branch, index, context);
   }
 }
 
+/**
+ * 获取分支的 codegenNode，并标记为 Block
+ */
 function getBranchCodegenNode(
   branch: IfBranchNode,
+  index: number,
   context: TransformContext
 ): CodegenNode {
   const child = branch.children[0];
+
+  // 添加 Block 所需的 helper
+  context.helper(OPEN_BLOCK);
+  context.helper(CREATE_ELEMENT_BLOCK);
+
   // 处理 ElementNode
   if (child.type === NodeTypes.ELEMENT) {
-    return (child as ElementNode).codegenNode!;
+    const elementCodegen = (child as ElementNode).codegenNode;
+
+    if (elementCodegen && elementCodegen.type === NodeTypes.VNODE_CALL) {
+      // 标记为 Block
+      elementCodegen.isBlock = true;
+
+      // 注入 key 到 props（用于 v-if 分支切换时的高效替换）
+      injectBranchKey(elementCodegen, index);
+
+      return elementCodegen;
+    }
   }
   // 处理 IfNode
   if (child.type === NodeTypes.IF) {
@@ -160,6 +209,36 @@ function getBranchCodegenNode(
     return (child as ForNode).codegenNode!;
   }
   return child as CodegenNode;
+}
+
+/**
+ * 注入分支 key 到 props
+ */
+function injectBranchKey(vnode: VNodeCall, key: number) {
+  const keyProp: Property = {
+    type: NodeTypes.JS_PROPERTY,
+    key: {
+      type: NodeTypes.SIMPLE_EXPRESSION,
+      content: "key",
+      isStatic: true,
+    },
+    value: {
+      type: NodeTypes.SIMPLE_EXPRESSION,
+      content: String(key),
+      isStatic: true,
+    },
+  };
+
+  if (vnode.props) {
+    // 已有 props，添加 key
+    vnode.props.properties.unshift(keyProp);
+  } else {
+    // 没有 props，创建
+    vnode.props = {
+      type: NodeTypes.JS_OBJECT_EXPRESSION,
+      properties: [keyProp],
+    };
+  }
 }
 
 function createCommentVNode(context: TransformContext) {

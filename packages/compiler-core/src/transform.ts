@@ -4,10 +4,12 @@ import {
   DirectiveNode,
   ElementNode,
   getChildCodegenNode,
+  HoistedNode,
   NodeTypes,
   RootNode,
   TemplateChildNode,
 } from "./ast";
+import { transformHoistStatic } from "./transforms/hoistStatic";
 
 /**
  * Transform 阶段概述
@@ -37,6 +39,8 @@ export interface TransformContext {
   helpers: Set<symbol>; // 收集用到的运行时函数
   nodeTransforms: NodeTransform[]; // 转换插件列表
   scopes: Set<string>[]; // 作用域栈，存储局部变量名
+  hoists: CodegenNode[]; // collect static nodes that need hoist
+  hoistStatic: boolean; // enable static hoist
 
   // 方法
   helper(name: symbol): symbol; // 添加 helper
@@ -44,6 +48,12 @@ export interface TransformContext {
   removeNode(): void; // 删除当前节点
   addIdentifiers(ids: string[]): void;
   removeIdentifiers(ids: string[]): void;
+  hoist(node: CodegenNode): HoistedNode; // hoist node
+}
+
+export interface TransformContextOptions {
+  nodeTransforms?: NodeTransform[];
+  hoistStatic?: boolean;
 }
 
 // 运行时帮助函数符号
@@ -55,6 +65,9 @@ export const CREATE_COMMENT = Symbol("createComment");
 export const WITH_DIRECTIVES = Symbol("withDirectives");
 export const V_SHOW = Symbol("vShow");
 export const V_MODEL_TEXT = Symbol("vModelText");
+export const OPEN_BLOCK = Symbol("openBlock");
+export const CREATE_BLOCK = Symbol("createBlock");
+export const CREATE_ELEMENT_BLOCK = Symbol("createElementBlock");
 
 // 符号到函数名的映射
 export const helperNameMap: Record<symbol, string> = {
@@ -66,11 +79,14 @@ export const helperNameMap: Record<symbol, string> = {
   [WITH_DIRECTIVES]: "withDirectives",
   [V_SHOW]: "vShow",
   [V_MODEL_TEXT]: "vModelText",
+  [OPEN_BLOCK]: "openBlock",
+  [CREATE_BLOCK]: "createBlock",
+  [CREATE_ELEMENT_BLOCK]: "createElementBlock",
 };
 
 function createTransformContext(
   root: RootNode,
-  options: { nodeTransforms?: NodeTransform[] } = {}
+  options: TransformContextOptions = {}
 ): TransformContext {
   const context: TransformContext = {
     root,
@@ -80,6 +96,8 @@ function createTransformContext(
     helpers: new Set(),
     nodeTransforms: options.nodeTransforms || [],
     scopes: [new Set()],
+    hoists: [],
+    hoistStatic: options.hoistStatic ?? true,
 
     helper(name) {
       context.helpers.add(name);
@@ -109,6 +127,15 @@ function createTransformContext(
     removeIdentifiers(ids: string[]) {
       ids.forEach((id) => context.scopes[context.scopes.length - 1].delete(id));
     },
+
+    hoist(node: CodegenNode): HoistedNode {
+      const index = context.hoists.length;
+      context.hoists.push(node);
+      return {
+        type: NodeTypes.JS_HOISTED,
+        index,
+      };
+    },
   };
 
   return context;
@@ -127,11 +154,17 @@ export function transform(
   // 遍历 AST
   traverseNode(root, context);
 
+  // 静态提升（必须在 traverseNode 之后）
+  if (context.hoistStatic) {
+    transformHoistStatic(root, context);
+  }
+
   // 创建根节点的 codegenNode
   createRootCodegen(root, context);
 
-  // 把收集的 helpers 挂到 root 上
+  // 把收集的信息挂到 root 上
   root.helpers = context.helpers;
+  root.hoists = context.hoists;
 }
 
 function traverseNode(
@@ -232,6 +265,10 @@ function createRootCodegen(root: RootNode, context: TransformContext) {
         type: NodeTypes.JS_ARRAY_EXPRESSION,
         elements: children.map(getChildCodegenNode),
       } as ArrayExpression,
+      // 编译优化相关属性
+      patchFlag: undefined,
+      dynamicProps: undefined,
+      isBlock: false,
     };
   }
 }
@@ -259,4 +296,12 @@ export function removeDir(node: ElementNode, names: string[]) {
  */
 export function isInScope(context: TransformContext, name: string): boolean {
   return context.scopes.some((scope) => scope.has(name));
+}
+
+/**
+ * 判断节点是否是组件节点
+ */
+export function isComponent(node: ElementNode): boolean {
+  // 简单判断：首字母大写或包含 - 的是组件
+  return /^[A-Z]/.test(node.tag) || node.tag.includes("-");
 }

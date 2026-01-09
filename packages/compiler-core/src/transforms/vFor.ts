@@ -1,19 +1,23 @@
 import {
+  CREATE_ELEMENT_BLOCK,
   CREATE_VNODE,
   findDir,
   FRAGMENT,
+  OPEN_BLOCK,
   removeDir,
   RENDER_LIST,
   TransformContext,
 } from "./../transform";
 import {
   ElementNode,
+  ElementPropNode,
   ExpressionNode,
   ForNode,
   getChildCodegenNode,
   NodeTypes,
   TemplateChildNode,
 } from "../ast";
+import { PatchFlags } from "@vue/shared";
 
 /**
  * transformFor - 列表渲染
@@ -31,6 +35,11 @@ import {
  *   createVNode(Fragment, null, renderList(list, (item) => {
  *     return createVNode("div", { key: item.id }, item.name)
  *   }))
+ *
+ * 生成代码（Block 模式）:
+ *   (openBlock(), createElementBlock(Fragment, null, renderList(list, (item) => {
+ *     return (openBlock(), createElementBlock("div", { key: item.id }, item.name))
+ *   }), 128 /* KEYED_FRAGMENT *\/))
  */
 export function transformFor(
   node: TemplateChildNode,
@@ -56,6 +65,9 @@ export function transformFor(
   // 从 props 中移除 v-for
   const element = node as ElementNode;
   removeDir(element, ["for"]);
+
+  // 检查是否有 :key | v-bind:key
+  const keyProp = findKeyProp(element);
 
   // 创建 ForNode
   const forNode: ForNode = {
@@ -95,11 +107,19 @@ export function transformFor(
     // 退出时移除作用域
     context.removeIdentifiers(localVars);
 
+    context.helper(OPEN_BLOCK);
+    context.helper(CREATE_ELEMENT_BLOCK);
     context.helper(CREATE_VNODE);
     context.helper(RENDER_LIST);
     context.helper(FRAGMENT);
 
+    // 获取子节点的 codegenNode，并标记为 Block
     const childCodegenNode = getChildCodegenNode(element);
+
+    if (childCodegenNode.type === NodeTypes.VNODE_CALL) {
+      // 每个循环项都是 Block
+      childCodegenNode.isBlock = true;
+    }
 
     // 构建函数参数
     const params: ExpressionNode[] = [forNode.valueAlias];
@@ -107,6 +127,14 @@ export function transformFor(
       params.push(forNode.keyAlias);
     }
 
+    // 确定 Fragment 的 patchFlag
+    // 有 key → KEYED_FRAGMENT（可以做高效 diff）
+    // 无 key → UNKEYED_FRAGMENT（只能全量 diff）
+    const fragmentPatchFlag = keyProp
+      ? PatchFlags.KEYED_FRAGMENT
+      : PatchFlags.UNKEYED_FRAGMENT;
+
+    // 外层 Fragment 也是 Block
     forNode.codegenNode = {
       type: NodeTypes.VNODE_CALL,
       tag: FRAGMENT,
@@ -123,8 +151,27 @@ export function transformFor(
           },
         ],
       },
+      patchFlag: fragmentPatchFlag,
+      dynamicProps: undefined,
+      isBlock: true, // Fragment 也是 Block
     };
   };
+}
+
+/**
+ * 查找 :key | v-bind:key 绑定
+ */
+function findKeyProp(node: ElementNode): ElementPropNode | undefined {
+  return node.props.find((prop) => {
+    if (prop.type === NodeTypes.DIRECTIVE && prop.name === "bind") {
+      const arg = prop.arg;
+      return arg?.type === NodeTypes.SIMPLE_EXPRESSION && arg.content === "key";
+    }
+    if (prop.type === NodeTypes.ATTRIBUTE && prop.name === "key") {
+      return true;
+    }
+    return false;
+  });
 }
 
 /**

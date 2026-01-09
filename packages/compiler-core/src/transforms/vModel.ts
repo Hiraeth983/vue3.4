@@ -4,7 +4,12 @@ import {
   NodeTypes,
   TemplateChildNode,
 } from "../ast";
-import { findDir, removeDir, TransformContext } from "../transform";
+import {
+  findDir,
+  removeDir,
+  TransformContext,
+  isComponent as _isComponent,
+} from "../transform";
 
 /**
  * transformModel - 双向绑定
@@ -36,9 +41,8 @@ export function transformModel(
   const exp = modelDir.exp?.content;
   if (!exp) return;
 
-  // 判断是原生元素还是组件 简易实现
-  const isComponent = /^[A-Z]/.test(element.tag);
-  const tag = element.tag;
+  // 判断是原生元素还是组件
+  const isComponent = _isComponent(element);
 
   // 从 props 中移除 v-model
   removeDir(element, ["model"]);

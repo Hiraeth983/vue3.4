@@ -7,6 +7,7 @@ import {
   ConditionalExpression,
   ForNode,
   FunctionExpression,
+  HoistedNode,
   IfNode,
   InterpolationNode,
   NodeTypes,
@@ -16,7 +17,13 @@ import {
   TextNode,
   VNodeCall,
 } from "./ast";
-import { helperNameMap, TO_DISPLAY_STRING } from "./transform";
+import {
+  CREATE_ELEMENT_BLOCK,
+  CREATE_VNODE,
+  helperNameMap,
+  OPEN_BLOCK,
+  TO_DISPLAY_STRING,
+} from "./transform";
 
 // 代码生成上下文
 interface CodegenContext {
@@ -74,29 +81,40 @@ function createCodegenContext(): CodegenContext {
  */
 export function generate(ast: RootNode): { code: string } {
   const context = createCodegenContext();
-  const { push, indent, deindent } = context;
+  const { push, indent, deindent, newline } = context;
 
   // 1. 生成前导代码（导入 helper 函数）
   // 生成: const { createVNode, toDisplayString } = Vue
   genFunctionPreamble(ast, context);
 
-  // 2. 生成 render 函数签名
+  // 2. 生成 hoisted 节点声明 在 render 函数外
+  const hoists = ast.hoists || [];
+  if (hoists.length > 0) {
+    for (let i = 0; i < hoists.length; i++) {
+      push(`const _hoisted_${i + 1} = `);
+      genNode(hoists[i], context);
+      newline();
+    }
+    newline();
+  }
+
+  // 3. 生成 render 函数签名
   const functionName = "render";
   const args = ["_ctx"];
   push(`function ${functionName}(${args.join(", ")}) {`);
   indent();
 
-  // 3. 生成 return 语句
+  // 4. 生成 return 语句
   push("return ");
 
-  // 4. 生成节点代码
+  // 5. 生成节点代码
   if (ast.codegenNode) {
     genNode(ast.codegenNode, context);
   } else {
     push("null");
   }
 
-  // 5. 闭合函数
+  // 6. 闭合函数
   deindent();
   push("}");
 
@@ -154,6 +172,8 @@ function genNode(node: CodegenNode, context: CodegenContext) {
     case NodeTypes.JS_CALL_EXPRESSION:
       genCallExpression(node as CallExpression, context);
       break;
+    case NodeTypes.JS_HOISTED:
+      genHoisted(node as HoistedNode, context);
   }
 }
 
@@ -222,14 +242,23 @@ function genInterpolation(node: InterpolationNode, context: CodegenContext) {
 }
 
 /**
- * genVNodeCall - VNode 调用
+ * genVNodeCall - 生成 VNode 调用且支持 Block 生成
  */
 function genVNodeCall(node: VNodeCall, context: CodegenContext) {
   const { push } = context;
-  const { tag, props, children } = node;
+  const { tag, props, children, patchFlag, dynamicProps, isBlock } = node;
 
+  // 🔥 如果是 Block，先生成 (openBlock(),
+  if (isBlock) {
+    push(`(${helperNameMap[OPEN_BLOCK]}(), `);
+  }
+
+  // 选择 helper：Block 用 createElementBlock，普通用 createVNode
   // 结果：createVNode("div", { ... }, [...])
-  push("createVNode(");
+  const callHelper = isBlock
+    ? helperNameMap[CREATE_ELEMENT_BLOCK]
+    : helperNameMap[CREATE_VNODE];
+  push(`${callHelper}(`);
 
   // 生成参数列表
   // 单独处理 tag 可能是字符串 '"div"' 或 symbol FRAGMENT
@@ -242,16 +271,33 @@ function genVNodeCall(node: VNodeCall, context: CodegenContext) {
   if (props) {
     push(", ");
     genNode(props, context);
-  } else if (children) {
+  } else if (children || patchFlag !== undefined) {
     push(", null"); // props 为空，需要占位
   }
   // 处理 children
   if (children) {
     push(", ");
     genNode(children, context);
+  } else if (patchFlag !== undefined) {
+    push(", null");
+  }
+  // patchFlag
+  if (patchFlag !== undefined) {
+    push(`, ${patchFlag}`);
+  }
+  // dynamicProps
+  if (dynamicProps && dynamicProps.length > 0) {
+    push(`, [`);
+    push(dynamicProps.map((prop) => `"${prop}"`).join(", "));
+    push(`]`);
   }
 
   push(")");
+
+  // 如果是 Block，闭合括号
+  if (isBlock) {
+    push(")");
+  }
 }
 
 /**
@@ -385,4 +431,12 @@ function genCallExpression(node: CallExpression, context: CodegenContext) {
     if (i < args.length - 1) push(", ");
   }
   push(")");
+}
+
+/**
+ * 生成 hoisted 引用
+ * 变量引用（在 render 函数内）
+ */
+function genHoisted(node: HoistedNode, context: CodegenContext) {
+  context.push(`_hoisted_${node.index + 1}`);
 }
